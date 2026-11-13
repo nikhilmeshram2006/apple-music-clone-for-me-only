@@ -189,6 +189,9 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
 
 export default defineConfig({
   base: './',
+  build: {
+    outDir: 'docs',
+  },
   plugins: [react(), fullAudioMiddleware()],
   server: { port: 5173, open: false, allowedHosts: true },
 });
