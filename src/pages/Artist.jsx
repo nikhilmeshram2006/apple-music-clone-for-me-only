@@ -98,9 +98,6 @@ export default function ArtistPage({ id }) {
           <div className="ah-portrait" style={{ backgroundImage: portrait ? `url(${portrait})` : undefined }} />
         )}
         <div className="ah-vignette" />
-        <div className="ah-rings" aria-hidden="true">
-          <span /><span /><span />
-        </div>
 
         <button className="ah-back glass" onClick={() => navigate('/')} aria-label="Back to Home">
           <Back size={20} />
@@ -117,6 +114,9 @@ export default function ArtistPage({ id }) {
 
         <div className="ah-content">
           <div className="ah-avatar">
+            <div className="ah-rings" aria-hidden="true">
+              <span /><span /><span />
+            </div>
             {portrait && <img src={portrait} alt={name} />}
             <span className="ah-live-dot" title="Animated Artist Motion" />
           </div>

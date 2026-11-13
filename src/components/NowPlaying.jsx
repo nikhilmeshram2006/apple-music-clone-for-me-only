@@ -60,7 +60,7 @@ export default function NowPlaying() {
   const lib = useLibrary();
   const { navigate } = useRouter();
   const song = player.current;
-  const [panel, setPanel] = useState('lyrics'); // 'art' | 'lyrics' | 'queue'
+  const [panel, setPanel] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 960 ? 'art' : 'lyrics')); // 'art' | 'lyrics' | 'queue'
   const [lyrics, setLyrics] = useState(null);
   const [lyrLoading, setLyrLoading] = useState(false);
   const [menu, setMenu] = useState(false);
