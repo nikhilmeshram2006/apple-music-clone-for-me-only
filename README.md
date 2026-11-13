@@ -19,7 +19,7 @@ A personal web player modeled after Apple Music. Built with React and Vite, with
 ### Features
 
 - **Audio** — Full-length 320 kbps AAC playback with MediaSession API support and keyboard shortcuts.
-- **Lyrics** — 60fps word-by-word fill, syllable weighting across Latin/CJK/Devanagari scripts, and click-to-seek lines.
+- **Lyrics** — word-by-word fill, syllable weighting across Latin,CJK,Devanagari scripts, and click-to-seek lines.
 - **Visuals** — Canvas mesh backgrounds sampled from cover art and looping motion artwork where available.
 - **Catalog** — 218 pre-indexed tracks across Pop, Romance, J-Pop, K-Pop, French, Latin, Rock, Hip-Hop, R&B, and Bollywood, plus live search.
 - **Library** — Local persistence for favorites, custom playlists, followed artists, and listening history.
