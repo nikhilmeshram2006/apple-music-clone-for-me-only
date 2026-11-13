@@ -83,6 +83,33 @@ export const More = (p) => (
     <circle cx="19" cy="12" r="2" />
   </I>
 );
+export const MoreVert = (p) => (
+  <I {...p}>
+    <circle cx="12" cy="5.5" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="12" cy="18.5" r="2" />
+  </I>
+);
+export const LosslessWave = (p) => (
+  <I {...p} vb="0 0 24 16" stroke sw={2}>
+    <path d="M1.5 8c1.5-5 3.5-5 5 0s3.5 5 5 0 3.5-5 5 0 3.5 5 5 0" />
+    <path d="M4 8c1.5-5 3.5-5 5 0s3.5 5 5 0 3.5-5 5 0" opacity=".6" />
+  </I>
+);
+export const CastIcon = (p) => (
+  <I {...p} stroke sw={2}>
+    <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" />
+    <circle cx="2.5" cy="19.5" r="1" fill="currentColor" stroke="none" />
+  </I>
+);
+export const QueueList = (p) => (
+  <I {...p} stroke sw={2.2}>
+    <circle cx="4.5" cy="6" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="18" r="1.3" fill="currentColor" stroke="none" />
+    <path d="M9 6h11M9 12h11M9 18h11" />
+  </I>
+);
 export const ChevronDown = (p) => <I {...p} stroke sw={2.6} d="m6 9 6 6 6-6" />;
 export const ChevronRight = (p) => <I {...p} stroke sw={2.4} d="m9 6 6 6-6 6" />;
 export const Back = (p) => <I {...p} stroke sw={2.6} d="M15 5 8 12l7 7" />;

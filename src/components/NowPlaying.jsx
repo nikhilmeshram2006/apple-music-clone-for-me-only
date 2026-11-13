@@ -3,8 +3,8 @@ import { art, loadLyrics } from '../api';
 import { fmt, useLibrary, usePlayer, usePlayerTime, useRouter } from '../store';
 import FluidBackground from './FluidBackground';
 import {
-  Airplay, ChevronDown, Explicit, Heart, Lyrics as LyricsIcon, More, Next, Pause, Play,
-  Prev, Queue as QueueIcon, Repeat, Shuffle, VolHigh, VolLow,
+  CastIcon, ChevronDown, Explicit, LosslessWave, Lyrics as LyricsIcon, MoreVert, Next, Pause, Play,
+  Prev, QueueList, Repeat, Shuffle, Star, VolHigh, VolLow,
 } from './Icons';
 import LyricsView from './Lyrics';
 import { Bars, SongMenu } from './Shared';
@@ -48,7 +48,9 @@ function Scrubber({ offset = 0 }) {
       </div>
       <div className="scrub-times">
         <span>{fmt(val + offset)}</span>
-        <span className="scrub-badge">Lossless · 320 kbps AAC</span>
+        <span className="scrub-badge">
+          <LosslessWave size={14} /> Lossless
+        </span>
         <span>-{fmt(Math.max(0, (d || 180) - val))}</span>
       </div>
     </div>
@@ -128,11 +130,11 @@ export default function NowPlaying() {
                 </div>
               </div>
               <button className={`np-circle ${liked ? 'on' : ''}`} onClick={() => lib.toggleLike(song)} aria-label="Favorite">
-                <Heart size={18} filled={liked} />
+                <Star size={18} />
               </button>
               <div style={{ position: 'relative' }}>
                 <button className="np-circle" onClick={() => setMenu((m) => !m)} aria-label="More">
-                  <More size={18} />
+                  <MoreVert size={18} />
                 </button>
                 {menu && <SongMenu song={song} onClose={() => setMenu(false)} />}
               </div>
@@ -148,11 +150,11 @@ export default function NowPlaying() {
               </div>
               <div className="np-meta-actions">
                 <button className={`np-circle ${liked ? 'on' : ''}`} onClick={() => lib.toggleLike(song)} aria-label="Favorite">
-                  <Heart size={18} filled={liked} />
+                  <Star size={18} />
                 </button>
                 <div style={{ position: 'relative' }}>
                   <button className="np-circle" onClick={() => setMenu((m) => !m)} aria-label="More">
-                    <More size={18} />
+                    <MoreVert size={18} />
                   </button>
                   {menu && <SongMenu song={song} onClose={() => setMenu(false)} />}
                 </div>
@@ -204,17 +206,17 @@ export default function NowPlaying() {
                 onClick={() => setPanel(panel === 'lyrics' ? 'art' : 'lyrics')}
                 title="Lyrics"
               >
-                <LyricsIcon size={20} />
+                <LyricsIcon size={22} />
               </button>
-              <button className="np-pill" onClick={() => song.appleUrl && window.open(song.appleUrl, '_blank')} title="Open in Apple Music">
-                <Airplay size={19} />
+              <button className="np-pill" onClick={() => song.appleUrl && window.open(song.appleUrl, '_blank')} title="Cast / AirPlay">
+                <CastIcon size={21} />
               </button>
               <button
                 className={`np-pill ${panel === 'queue' ? 'on' : ''}`}
                 onClick={() => setPanel(panel === 'queue' ? 'art' : 'queue')}
                 title="Playing Next"
               >
-                <QueueIcon size={20} />
+                <QueueList size={22} />
               </button>
             </div>
           </div>

@@ -836,8 +836,11 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   color: rgba(255,255,255,0.58); font-variant-numeric: tabular-nums;
 }
 .scrub-badge {
-  padding: 2px 7px; border-radius: 5px;
-  background: rgba(255,255,255,0.12); font-size: 10px; letter-spacing: 0.04em;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 6px;
+  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.78);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
 }
 
 /* transport */
@@ -1130,20 +1133,37 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   .sf-grid { grid-template-columns: 1fr 1fr; gap: 20px; }
   .site-footer { padding: 26px 16px 190px; }
 
-  .np-sheet { padding: 8px 18px 18px; justify-content: space-between; }
+  .np-sheet { padding: 8px 24px 24px; justify-content: space-between; }
   .np-body { grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
-  .np-left { gap: 13px; justify-content: center; height: 100%; }
+  .np-left { gap: 18px; justify-content: center; height: 100%; max-width: 390px; }
   .np-art-stage {
-    width: min(82vw, 320px);
-    height: min(82vw, 320px);
-    max-height: 38vh;
+    width: min(82vw, 330px);
+    height: min(82vw, 330px);
+    max-height: 40vh;
     aspect-ratio: 1;
-    margin: 0 auto 8px;
+    margin: 0 auto 10px;
   }
   .np-overlay.panel-art .np-art-stage {
-    width: min(84vw, 340px);
-    height: min(84vw, 340px);
-    max-height: 41vh;
+    width: min(84vw, 345px);
+    height: min(84vw, 345px);
+    max-height: 43vh;
+  }
+  .np-meta-actions { gap: 10px; }
+  .np-circle {
+    width: 38px; height: 38px;
+    background: rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.88);
+  }
+  .np-t-aux { display: none; }
+  .np-volume { display: none; }
+  .np-transport {
+    justify-content: center;
+    gap: 44px;
+    padding: 6px 0;
+  }
+  .np-SwitchRow {
+    justify-content: space-between;
+    padding: 4px 28px 0;
   }
   .np-overlay.panel-lyrics .np-art-stage,
   .np-overlay.panel-lyrics .np-meta-row,
