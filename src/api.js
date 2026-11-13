@@ -145,21 +145,37 @@ export async function searchAll(term) {
 }
 
 export async function artistLookup(id, fallbackName = '') {
-  if (String(id).startsWith('sva_') || fallbackName) {
+  if (String(id).startsWith('sva_')) {
     const name = fallbackName || catalogRef?.artists?.[id]?.name || '';
     if (name) {
-      const res = await getJSON(`/api/search?q=${encodeURIComponent(name)}`).catch(() => ({ songs: [], albums: [] }));
+      try {
+        const res = await getJSON(`/api/search?q=${encodeURIComponent(name)}`);
+        if (res?.songs?.length || res?.albums?.length) {
+          return {
+            name,
+            genre: catalogRef?.artists?.[id]?.genre || 'Music',
+            songs: res.songs || [],
+            albums: res.albums || [],
+          };
+        }
+      } catch {
+        /* static deployment fallback */
+      }
+      const [itSongs, itAlbums] = await Promise.all([
+        getJSON(`${IT}/search?term=${encodeURIComponent(name)}&entity=song&limit=50`).catch(() => ({ results: [] })),
+        getJSON(`${IT}/search?term=${encodeURIComponent(name)}&entity=album&limit=30`).catch(() => ({ results: [] })),
+      ]);
       return {
         name,
         genre: catalogRef?.artists?.[id]?.genre || 'Music',
-        songs: res.songs || [],
-        albums: res.albums || [],
+        songs: (itSongs.results || []).filter((r) => r.wrapperType === 'track' && r.previewUrl).map(normalizeTrack),
+        albums: (itAlbums.results || []).filter((r) => r.wrapperType === 'collection').map(normalizeAlbum),
       };
     }
   }
   const [songs, albums] = await Promise.all([
-    getJSON(`${IT}/lookup?id=${id}&entity=song&limit=50`).catch(() => ({ results: [] })),
-    getJSON(`${IT}/lookup?id=${id}&entity=album&limit=30`).catch(() => ({ results: [] })),
+    getJSON(`${IT}/lookup?id=${id}&entity=song&limit=100`).catch(() => ({ results: [] })),
+    getJSON(`${IT}/lookup?id=${id}&entity=album&limit=50`).catch(() => ({ results: [] })),
   ]);
   const info = songs.results.find((r) => r.wrapperType === 'artist') || albums.results.find((r) => r.wrapperType === 'artist');
   const seen = new Set();
@@ -177,7 +193,7 @@ export async function artistLookup(id, fallbackName = '') {
     .map(normalizeAlbum)
     .sort((a, b) => (b.year || '').localeCompare(a.year || ''));
   return {
-    name: info?.artistName,
+    name: info?.artistName || fallbackName,
     genre: info?.primaryGenreName,
     songs: trackList,
     albums: albumList,
