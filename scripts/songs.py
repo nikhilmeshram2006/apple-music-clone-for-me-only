@@ -253,4 +253,17 @@ SONGS = [
     ("King", "Maan Meri Jaan", "bollywood", "hi"),
     ("Shreya Ghoshal", "Teri Ore", "bollywood", "hi"),
     ("Atif Aslam", "Tera Hone Laga Hoon", "bollywood", "hi"),
+
+    # ============================== USER ADDITIONS
+    ("Bleachers", "Merry Christmas, Please Don't Call", "pop", "en"),
+    ("Alex Crichton", "Merry Christmas, i miss you", "romance", "en"),
+    ("Alex Crichton", "What If I Call", "romance", "en"),
+    ("The 1975", "About You", "pop", "en"),
+    ("Ariana Grande", "hate that i made you love me", "pop", "en"),
+    ("Sufjan Stevens", "Mystery of Love", "romance", "en"),
+    ("milet", "The Story of Us", "jpop", "ja"),
+    ("She & Him", "I Thought I Saw Your Face Today", "romance", "en"),
+    ("Kenshi Yonezu", "JANE DOE", "jpop", "ja"),
+    ("Kenshi Yonezu", "IRIS OUT", "jpop", "ja"),
+    ("Rosa Walton & Hallie Coggins", "I Really Want to Stay at Your House", "pop", "en"),
 ]
