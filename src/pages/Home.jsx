@@ -25,13 +25,18 @@ export default function HomePage() {
   const [genre, setGenre] = useState('all');
 
   const allSongs = useMemo(() => Object.values(catalog.songs), [catalog]);
-  const allArtists = useMemo(
-    () =>
-      Object.values(catalog.artists)
-        .filter((a) => a.image)
-        .sort((a, b) => (b.fans || 0) - (a.fans || 0)),
-    [catalog]
-  );
+  const allArtists = useMemo(() => {
+    const seen = new Set();
+    return Object.values(catalog.artists)
+      .filter((a) => a.image)
+      .sort((a, b) => (b.fans || 0) - (a.fans || 0))
+      .filter((a) => {
+        const k = (a.name || '').trim().toLowerCase();
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  }, [catalog]);
 
   // Featured hero cards (pick songs with synced lyrics across genres)
   const heroes = useMemo(() => {

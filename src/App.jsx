@@ -196,12 +196,14 @@ export default function App() {
       .then((c) => {
         if (c?.songs) {
           Object.values(c.songs).forEach((s) => {
-            s._q = `${s.title || ''} ${s.artist || ''} ${s.album || ''} ${s.genre || ''}`.toLowerCase();
+            const raw = `${s.title || ''} ${s.artist || ''} ${s.album || ''} ${s.genre || ''} ${s.aliases || ''}`.toLowerCase();
+            s._q = `${raw} ${raw.replace(/['’]/g, '')} ${raw.replace(/fujii/g, 'fuji')}`;
           });
         }
         if (c?.artists) {
           Object.values(c.artists).forEach((a) => {
-            a._q = (a.name || '').toLowerCase();
+            const raw = (a.name || '').toLowerCase();
+            a._q = `${raw} ${raw.replace(/['’]/g, '')} ${raw.replace(/fujii/g, 'fuji')}`;
           });
         }
         setCatalogRef(c);

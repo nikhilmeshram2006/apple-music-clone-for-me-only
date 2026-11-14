@@ -8,11 +8,30 @@ export const art = (tpl, size = 600) => (tpl ? tpl.replace(/\{s\}/g, size) : '')
 const toTpl = (u) => (u ? u.replace(/\/\d+x\d+bb\.(jpg|png|webp)$/, '/{s}x{s}bb.jpg') : '');
 
 let catalogRef = null;
-export const setCatalogRef = (c) => (catalogRef = c);
+let catalogByTitleArtist = new Map();
+
+const normKey = (title = '', artist = '') =>
+  `${title.toLowerCase().replace(/\s*[([].*$/, '').trim()}|${artist.toLowerCase().split(/[&,]/)[0].trim()}`;
+
+export const setCatalogRef = (c) => {
+  catalogRef = c;
+  catalogByTitleArtist = new Map();
+  if (c?.songs) {
+    Object.values(c.songs).forEach((s) => {
+      catalogByTitleArtist.set(`${(s.title || '').toLowerCase().trim()}|${(s.artist || '').toLowerCase().trim()}`, s);
+      const bk = normKey(s.title, s.artist);
+      if (!catalogByTitleArtist.has(bk)) catalogByTitleArtist.set(bk, s);
+    });
+  }
+};
 
 export function normalizeTrack(r) {
   const id = String(r.trackId);
   if (catalogRef?.songs?.[id]) return catalogRef.songs[id];
+  const exactKey = `${(r.trackName || '').toLowerCase().trim()}|${(r.artistName || '').toLowerCase().trim()}`;
+  if (catalogByTitleArtist.has(exactKey)) return catalogByTitleArtist.get(exactKey);
+  const baseKey = normKey(r.trackName, r.artistName);
+  if (catalogByTitleArtist.has(baseKey)) return catalogByTitleArtist.get(baseKey);
   return {
     id,
     title: r.trackName,
@@ -201,30 +220,45 @@ export async function artistLookup(id, fallbackName = '') {
 }
 
 export async function albumLookup(id) {
-  if (String(id).startsWith('svb_')) {
-    const allSongs = Object.values(catalogRef?.songs || {}).filter((s) => s.albumId === id);
-    if (allSongs.length) {
-      const f = allSongs[0];
-      return {
-        album: {
-          id,
-          title: f.album || f.title,
-          artist: f.artist,
-          artistId: f.artistId,
-          art: f.art,
-          year: f.year || '2025',
-          count: allSongs.length,
-          genre: f.genre,
-        },
-        songs: allSongs,
-      };
-    }
+  const localSongs = Object.values(catalogRef?.songs || {}).filter((s) => String(s.albumId) === String(id));
+  if (String(id).startsWith('svb_') && localSongs.length) {
+    const f = localSongs[0];
+    return {
+      album: {
+        id: String(id),
+        title: f.album || f.title,
+        artist: f.artist,
+        artistId: f.artistId,
+        art: f.art,
+        year: f.year || '2025',
+        count: localSongs.length,
+        genre: f.genre,
+      },
+      songs: localSongs,
+    };
   }
   const d = await getJSON(`${IT}/lookup?id=${id}&entity=song&limit=100`).catch(() => ({ results: [] }));
   const info = d.results.find((r) => r.wrapperType === 'collection');
+  const remoteSongs = d.results.filter((r) => r.wrapperType === 'track').map(normalizeTrack);
+  if (!info && localSongs.length) {
+    const f = localSongs[0];
+    return {
+      album: {
+        id: String(id),
+        title: f.album || f.title,
+        artist: catalogRef?.artists?.[f.artistId]?.name || f.artist,
+        artistId: f.artistId,
+        art: f.art,
+        year: f.year || '2025',
+        count: localSongs.length,
+        genre: f.genre,
+      },
+      songs: localSongs,
+    };
+  }
   return {
     album: info ? { ...normalizeAlbum(info), copyright: info.copyright, released: info.releaseDate } : null,
-    songs: d.results.filter((r) => r.wrapperType === 'track').map(normalizeTrack),
+    songs: remoteSongs.length ? remoteSongs : localSongs,
   };
 }
 

@@ -47,25 +47,56 @@ export function SearchPage({ initialQuery = '' }) {
   }, [deferredQ, catalog]);
 
   const allSongs = useMemo(() => Object.values(catalog.songs), [catalog]);
-  const allArtists = useMemo(
-    () =>
-      Object.values(catalog.artists)
-        .filter((a) => a.image)
-        .sort((a, b) => (b.fans || 0) - (a.fans || 0)),
-    [catalog]
-  );
+  const allArtists = useMemo(() => {
+    const seen = new Set();
+    return Object.values(catalog.artists)
+      .filter((a) => a.image)
+      .sort((a, b) => (b.fans || 0) - (a.fans || 0))
+      .filter((a) => {
+        const k = (a.name || '').trim().toLowerCase();
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  }, [catalog]);
 
   const localSongs = useMemo(() => {
-    const t = deferredQ.trim().toLowerCase();
+    const t = deferredQ.trim().toLowerCase().replace(/['’]/g, '');
     if (!t) return [];
     return allSongs.filter((s) => (s._q || `${s.title} ${s.artist} ${s.album} ${s.genre}`.toLowerCase()).includes(t));
   }, [deferredQ, allSongs]);
 
   const localArtists = useMemo(() => {
-    const t = deferredQ.trim().toLowerCase();
+    const t = deferredQ.trim().toLowerCase().replace(/['’]/g, '');
     if (!t) return [];
-    return Object.values(catalog.artists).filter((a) => (a._q || a.name.toLowerCase()).includes(t));
+    const seen = new Set();
+    return Object.values(catalog.artists).filter((a) => {
+      if (!(a._q || a.name.toLowerCase()).includes(t)) return false;
+      const k = (a.name || '').trim().toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   }, [deferredQ, catalog]);
+
+  const localAlbums = useMemo(() => {
+    const t = deferredQ.trim().toLowerCase().replace(/['’]/g, '');
+    if (!t) return [];
+    const map = new Map();
+    localSongs.forEach((s) => {
+      if (s.albumId && s.album && !map.has(s.albumId)) {
+        map.set(s.albumId, {
+          id: s.albumId,
+          title: s.album,
+          artist: catalog.artists?.[s.artistId]?.name || s.artist,
+          artistId: s.artistId,
+          art: s.art,
+          year: s.year,
+        });
+      }
+    });
+    return [...map.values()];
+  }, [deferredQ, localSongs, catalog]);
 
   const songs = useMemo(() => {
     const map = new Map();
@@ -76,10 +107,23 @@ export function SearchPage({ initialQuery = '' }) {
 
   const artists = useMemo(() => {
     const map = new Map();
-    localArtists.forEach((a) => map.set(a.id, a));
-    (remote?.artists || []).forEach((a) => !map.has(a.id) && map.set(a.id, a));
+    localArtists.forEach((a) => map.set(a.name.trim().toLowerCase(), a));
+    (remote?.artists || []).forEach((a) => {
+      const k = (a.name || '').trim().toLowerCase();
+      if (k && !map.has(k)) map.set(k, a);
+    });
     return [...map.values()];
   }, [localArtists, remote]);
+
+  const albums = useMemo(() => {
+    const map = new Map();
+    localAlbums.forEach((al) => map.set(String(al.id), al));
+    (remote?.albums || []).forEach((al) => {
+      const id = String(al.id);
+      if (!map.has(id)) map.set(id, al);
+    });
+    return [...map.values()];
+  }, [localAlbums, remote]);
 
   return (
     <div className="page search-page">
@@ -179,11 +223,11 @@ export function SearchPage({ initialQuery = '' }) {
             </section>
           )}
 
-          {remote?.albums?.length > 0 && (
+          {albums.length > 0 && (
             <section className="sec">
               <h2>Albums</h2>
               <div className="card-row">
-                {remote.albums.map((al) => (
+                {albums.map((al) => (
                   <div key={al.id} className="song-card" onClick={() => navigate(`/album/${al.id}`)}>
                     <div className="sc-art">
                       <img src={art(al.art, 400)} alt={al.title} loading="lazy" />
