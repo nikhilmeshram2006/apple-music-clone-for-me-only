@@ -3,11 +3,23 @@ import { art } from '../api';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
 import { ChevronRight, Lyrics, Play, Shuffle } from '../components/Icons';
 import FluidBackground from '../components/FluidBackground';
-import { useCatalog, useLibrary, usePlayer, useRouter } from '../store';
+import { useCatalog, useLibrary, usePlayerActions, useRouter } from '../store';
+
+const SHELF_DEFS = [
+  { id: 'pop', title: 'Today’s Pop Superstars', sub: 'Full-length chart toppers with animated album covers & word-by-word lyrics' },
+  { id: 'jpop', title: 'J-Pop & Anime Essentials', sub: 'YOASOBI, Kenshi Yonezu, Ado, Fujii Kaze, RADWIMPS & Tokyo hits' },
+  { id: 'kpop', title: 'K-Pop Global Wave', sub: 'ROSÉ, BTS, NewJeans, BLACKPINK, aespa, Stray Kids & LE SSERAFIM' },
+  { id: 'romance', title: 'Romance & Slow Dance', sub: 'Timeless love songs & ballads with full-length sing-along lyrics' },
+  { id: 'french', title: 'Pop Française & Chanson', sub: 'Indila, Stromae, Aya Nakamura, Angèle, Daft Punk & Édith Piaf' },
+  { id: 'latin', title: 'Éxitos Latinos', sub: 'Bad Bunny, KAROL G, Shakira, Peso Pluma, Feid & Rauw Alejandro' },
+  { id: 'rock', title: 'Rock & Alternative Legends', sub: 'Queen, Arctic Monkeys, Linkin Park, Coldplay, Nirvana & Tame Impala' },
+  { id: 'hiphop', title: 'Rap Life & R&B', sub: 'Kendrick Lamar, SZA, The Weeknd, Travis Scott, Drake & Frank Ocean', extra: 'rnb' },
+  { id: 'bollywood', title: 'Bollywood Romance & Indie', sub: 'Arijit Singh, Anuv Jain, AP Dhillon & Diljit Dosanjh' },
+];
 
 export default function HomePage() {
   const catalog = useCatalog();
-  const player = usePlayer();
+  const player = usePlayerActions();
   const lib = useLibrary();
   const { navigate } = useRouter();
   const [genre, setGenre] = useState('all');
@@ -41,19 +53,39 @@ export default function HomePage() {
       .filter(Boolean);
   }, [allSongs]);
 
+  const byGenreMap = useMemo(() => {
+    const map = {};
+    allSongs.forEach((s) => {
+      if (!map[s.genre]) map[s.genre] = [];
+      map[s.genre].push(s);
+    });
+    return map;
+  }, [allSongs]);
+
   const filtered = useMemo(
-    () => (genre === 'all' ? allSongs : allSongs.filter((s) => s.genre === genre)),
-    [allSongs, genre]
+    () => (genre === 'all' ? allSongs : byGenreMap[genre] || []),
+    [allSongs, byGenreMap, genre]
   );
 
   const syncedSongs = useMemo(() => allSongs.filter((s) => s.lyrics === 'synced'), [allSongs]);
-  const byGenre = (g) => allSongs.filter((s) => s.genre === g);
+  const topArtists = useMemo(() => allArtists.slice(0, 18), [allArtists]);
+  const quickSingAlong = useMemo(() => syncedSongs.slice(0, 12), [syncedSongs]);
+  const recentSlice = useMemo(() => lib.recent.slice(0, 10), [lib.recent]);
+
+  const shelves = useMemo(
+    () =>
+      SHELF_DEFS.map((shelf) => ({
+        ...shelf,
+        list: allSongs.filter((s) => s.genre === shelf.id || s.genre === shelf.extra),
+      })).filter((s) => s.list.length > 0),
+    [allSongs]
+  );
 
   return (
     <div className="page home-page">
       <header className="page-header">
         <div className="ph-brand-row" onClick={() => navigate('/')} style={{ cursor: 'pointer' }} title="Go to Home">
-          <img className="ph-logo-img" src="logo.jpg" alt="Apple Music" />
+          <img className="ph-logo-img" src="logo.jpg" alt="Apple Music" decoding="async" />
           <div>
             <div className="eyebrow">apple music</div>
             <h1>Home</h1>
@@ -82,7 +114,7 @@ export default function HomePage() {
               key={s.id}
               className="hero-card"
               onClick={() => {
-                player.playSong(s, byGenre(s.genre));
+                player.playSong(s, byGenreMap[s.genre] || allSongs);
                 player.setNowOpen(true);
               }}
             >
@@ -105,7 +137,7 @@ export default function HomePage() {
                 ) : (
                   <FluidBackground src={artist?.image || art(s.art, 300)} speed={0.9} dim={0.22} />
                 )}
-                <img className="hc-art" src={art(s.art, 600)} alt={s.title} />
+                <img className="hc-art" src={art(s.art, 600)} alt={s.title} decoding="async" />
                 <div className="hc-footer">
                   <div className="hc-f-text">
                     <div className="t">{s.title}</div>
@@ -169,7 +201,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="artist-row">
-          {allArtists.slice(0, 18).map((a) => (
+          {topArtists.map((a) => (
             <ArtistBubble key={a.id} artist={a} />
           ))}
         </div>
@@ -193,20 +225,20 @@ export default function HomePage() {
           </button>
         </div>
         <div className="QuickGrid">
-          {syncedSongs.slice(0, 12).map((s) => (
+          {quickSingAlong.map((s) => (
             <SongRow key={s.id} song={s} list={syncedSongs} compact />
           ))}
         </div>
       </section>
 
       {/* RECENTLY PLAYED */}
-      {lib.recent.length > 0 && (
+      {recentSlice.length > 0 && (
         <section className="sec">
           <div className="sec-head">
             <h2>Recently Played</h2>
           </div>
           <div className="card-row">
-            {lib.recent.slice(0, 10).map((s) => (
+            {recentSlice.map((s) => (
               <SongCard key={s.id} song={s} list={lib.recent} />
             ))}
           </div>
@@ -214,38 +246,24 @@ export default function HomePage() {
       )}
 
       {/* GENRE SHELVES */}
-      {[
-        { id: 'pop', title: 'Today’s Pop Superstars', sub: 'Full-length chart toppers with animated album covers & word-by-word lyrics' },
-        { id: 'jpop', title: 'J-Pop & Anime Essentials', sub: 'YOASOBI, Kenshi Yonezu, Ado, Fujii Kaze, RADWIMPS & Tokyo hits' },
-        { id: 'kpop', title: 'K-Pop Global Wave', sub: 'ROSÉ, BTS, NewJeans, BLACKPINK, aespa, Stray Kids & LE SSERAFIM' },
-        { id: 'romance', title: 'Romance & Slow Dance', sub: 'Timeless love songs & ballads with full-length sing-along lyrics' },
-        { id: 'french', title: 'Pop Française & Chanson', sub: 'Indila, Stromae, Aya Nakamura, Angèle, Daft Punk & Édith Piaf' },
-        { id: 'latin', title: 'Éxitos Latinos', sub: 'Bad Bunny, KAROL G, Shakira, Peso Pluma, Feid & Rauw Alejandro' },
-        { id: 'rock', title: 'Rock & Alternative Legends', sub: 'Queen, Arctic Monkeys, Linkin Park, Coldplay, Nirvana & Tame Impala' },
-        { id: 'hiphop', title: 'Rap Life & R&B', sub: 'Kendrick Lamar, SZA, The Weeknd, Travis Scott, Drake & Frank Ocean', extra: 'rnb' },
-        { id: 'bollywood', title: 'Bollywood Romance & Indie', sub: 'Arijit Singh, Anuv Jain, AP Dhillon & Diljit Dosanjh' },
-      ].map((shelf) => {
-        const list = allSongs.filter((s) => s.genre === shelf.id || s.genre === shelf.extra);
-        if (!list.length) return null;
-        return (
-          <section className="sec" key={shelf.id}>
-            <div className="sec-head">
-              <div>
-                <h2>{shelf.title}</h2>
-                <p className="sec-sub">{shelf.sub}</p>
-              </div>
-              <button className="sec-more" onClick={() => setGenre(shelf.id)}>
-                See All <ChevronRight size={16} />
-              </button>
+      {shelves.map((shelf) => (
+        <section className="sec" key={shelf.id}>
+          <div className="sec-head">
+            <div>
+              <h2>{shelf.title}</h2>
+              <p className="sec-sub">{shelf.sub}</p>
             </div>
-            <div className="card-row">
-              {list.map((s) => (
-                <SongCard key={s.id} song={s} list={list} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+            <button className="sec-more" onClick={() => setGenre(shelf.id)}>
+              See All <ChevronRight size={16} />
+            </button>
+          </div>
+          <div className="card-row">
+            {shelf.list.map((s) => (
+              <SongCard key={s.id} song={s} list={shelf.list} />
+            ))}
+          </div>
+        </section>
+      ))}
 
       {/* BROWSE BY CATEGORY CARDS */}
       <section className="sec">
@@ -254,7 +272,7 @@ export default function HomePage() {
         </div>
         <div className="mood-grid">
           {catalog.genres.map((g) => {
-            const sample = byGenre(g.id)[0];
+            const sample = (byGenreMap[g.id] || [])[0];
             return (
               <div
                 key={g.id}
@@ -263,7 +281,7 @@ export default function HomePage() {
                 onClick={() => navigate(`/genre/${g.id}`)}
               >
                 <span>{g.name}</span>
-                {sample && <img src={art(sample.art, 300)} alt="" />}
+                {sample && <img src={art(sample.art, 300)} alt="" loading="lazy" decoding="async" />}
               </div>
             );
           })}

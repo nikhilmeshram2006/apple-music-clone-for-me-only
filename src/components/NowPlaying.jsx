@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { art, loadLyrics } from '../api';
-import { fmt, useLibrary, usePlayer, usePlayerTime, useRouter } from '../store';
+import { fmt, useLiked, usePlayer, usePlayerTime, useRouter } from '../store';
 import FluidBackground from './FluidBackground';
 import {
   CastIcon, ChevronDown, Explicit, LosslessWave, Lyrics as LyricsIcon, MoreVert, Next, Pause, Play,
@@ -59,7 +59,7 @@ function Scrubber({ offset = 0 }) {
 
 export default function NowPlaying() {
   const player = usePlayer();
-  const lib = useLibrary();
+  const lib = useLiked();
   const { navigate } = useRouter();
   const song = player.current;
   const [panel, setPanel] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 960 ? 'art' : 'lyrics')); // 'art' | 'lyrics' | 'queue'
@@ -92,7 +92,7 @@ export default function NowPlaying() {
 
   return (
     <div className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel}`} aria-hidden={!player.nowOpen}>
-      <FluidBackground src={art(song.art, 300)} speed={1.1} dim={0.38} paused={!player.playing} />
+      <FluidBackground src={art(song.art, 300)} speed={1.1} dim={0.38} paused={!player.playing} active={player.nowOpen} />
       <div className="np-sheet">
         <button className="np-dismiss" onClick={() => player.setNowOpen(false)} aria-label="Collapse player">
           <span className="grabber" />
@@ -103,7 +103,7 @@ export default function NowPlaying() {
           {/* LEFT: artwork + transport */}
           <div className="np-left">
             <div className={`np-art-stage ${player.playing ? 'playing' : 'paused'} ${song.videoArt ? 'has-video' : ''}`} onClick={() => setPanel(panel === 'art' ? 'lyrics' : 'art')}>
-              {song.videoArt ? (
+              {song.videoArt && player.nowOpen ? (
                 <video
                   key={song.videoArt}
                   className="np-video-art"
@@ -115,7 +115,7 @@ export default function NowPlaying() {
                   playsInline
                 />
               ) : (
-                <img src={art(song.art, 1000)} alt={song.title} />
+                <img src={art(song.art, 1000)} alt={song.title} decoding="async" />
               )}
             </div>
 
@@ -255,7 +255,7 @@ export default function NowPlaying() {
                 </div>
               </div>
             ) : (
-              <LyricsView data={lyrics} loading={lyrLoading} song={song} />
+              <LyricsView data={lyrics} loading={lyrLoading} song={song} visible={player.nowOpen && panel !== 'queue'} />
             )}
           </div>
         </div>

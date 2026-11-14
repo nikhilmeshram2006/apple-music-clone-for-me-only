@@ -7,7 +7,7 @@ import NowPlaying from './components/NowPlaying';
 import ArtistPage from './pages/Artist';
 import HomePage from './pages/Home';
 import { AlbumPage, GenrePage, LibraryPage, NotFoundPage, PlaylistPage, ProfilePage, SearchPage } from './pages/OtherPages';
-import { CatalogProvider, LibraryProvider, PlayerProvider, RouterProvider, useCatalog, useLibrary, usePlayer, useRouter } from './store';
+import { CatalogProvider, LibraryProvider, PlayerProvider, RouterProvider, useCatalog, usePlayer, useRouter, useToast } from './store';
 
 function Sidebar({ mobileOpen, onCloseMobile }) {
   const { path, navigate } = useRouter();
@@ -108,7 +108,7 @@ function SiteFooter() {
 }
 
 function ToastBanner() {
-  const { toast } = useLibrary();
+  const toast = useToast();
   if (!toast) return null;
   return (
     <div className={`toast-banner ${toast.type}`} role="status" aria-live="polite">
@@ -118,13 +118,10 @@ function ToastBanner() {
   );
 }
 
-function Shell() {
-  const { path } = useRouter();
+function AmbientLayer({ path }) {
   const catalog = useCatalog();
   const player = usePlayer();
-  const [mobileMenu, setMobileMenu] = useState(false);
 
-  // Dynamic page titles & meta descriptions per route
   useEffect(() => {
     if (player.current && player.playing) return;
     let title = 'Apple Music — Stream Full-Length Songs & Word-Synced Lyrics';
@@ -142,6 +139,24 @@ function Shell() {
     document.title = title;
   }, [path, catalog, player.current, player.playing]);
 
+  if (!player.current) return null;
+  return (
+    <div className="ambient-bg">
+      <FluidBackground
+        src={art(player.current.art, 200)}
+        speed={0.5}
+        dim={0.82}
+        paused={!player.playing}
+        active={!player.nowOpen}
+      />
+    </div>
+  );
+}
+
+function Shell() {
+  const { path } = useRouter();
+  const [mobileMenu, setMobileMenu] = useState(false);
+
   let page;
   if (path === '/') page = <HomePage />;
   else if (path.startsWith('/artist/')) page = <ArtistPage id={decodeURIComponent(path.slice(8))} />;
@@ -156,11 +171,7 @@ function Shell() {
 
   return (
     <div className="app-shell">
-      {player.current && (
-        <div className="ambient-bg">
-          <FluidBackground src={art(player.current.art, 200)} speed={0.5} dim={0.82} paused={!player.playing} />
-        </div>
-      )}
+      <AmbientLayer path={path} />
       <Sidebar mobileOpen={mobileMenu} onCloseMobile={() => setMobileMenu(false)} />
       <main className="page-scroll">
         <TopBar onOpenMobileMenu={() => setMobileMenu(true)} />
@@ -183,6 +194,16 @@ export default function App() {
     fetch('data/catalog.json')
       .then((r) => r.json())
       .then((c) => {
+        if (c?.songs) {
+          Object.values(c.songs).forEach((s) => {
+            s._q = `${s.title || ''} ${s.artist || ''} ${s.album || ''} ${s.genre || ''}`.toLowerCase();
+          });
+        }
+        if (c?.artists) {
+          Object.values(c.artists).forEach((a) => {
+            a._q = (a.name || '').toLowerCase();
+          });
+        }
         setCatalogRef(c);
         setCatalog(c);
       });

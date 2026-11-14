@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { art, searchAll } from '../api';
-import { useCatalog, usePlayer, usePlayerTime, useRouter } from '../store';
+import { useCatalog, usePlayer, usePlayerActions, usePlayerTime, useRouter } from '../store';
 import { Close, Home, Library, Lyrics, Next, Pause, Play, Search, User } from './Icons';
 
 export function TopBar({ onOpenMobileMenu }) {
   const { path, navigate } = useRouter();
   const catalog = useCatalog();
-  const player = usePlayer();
+  const player = usePlayerActions();
   const [q, setQ] = useState('');
+  const deferredQ = useDeferredValue(q);
   const [open, setOpen] = useState(false);
   const [remote, setRemote] = useState(null);
   const boxRef = useRef(null);
@@ -20,7 +21,7 @@ export function TopBar({ onOpenMobileMenu }) {
   }, []);
 
   useEffect(() => {
-    const term = q.trim();
+    const term = deferredQ.trim();
     if (term.length < 2) {
       setRemote(null);
       return;
@@ -29,29 +30,49 @@ export function TopBar({ onOpenMobileMenu }) {
       searchAll(term).then(setRemote).catch(() => {});
     }, 220);
     return () => clearTimeout(id);
-  }, [q]);
+  }, [deferredQ]);
 
-  const localSongs = q.trim()
-    ? Object.values(catalog.songs)
-        .filter((s) => `${s.title} ${s.artist} ${s.genre}`.toLowerCase().includes(q.toLowerCase()))
-        .slice(0, 6)
-    : [];
-  const localArtists = q.trim()
-    ? Object.values(catalog.artists)
-        .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()))
-        .slice(0, 5)
-    : [];
+  const allSongs = useMemo(() => Object.values(catalog.songs), [catalog]);
+  const allArtists = useMemo(() => Object.values(catalog.artists), [catalog]);
 
-  const mergedArtists = (() => {
+  const localSongs = useMemo(() => {
+    const t = deferredQ.trim().toLowerCase();
+    if (!t) return [];
+    const out = [];
+    for (let i = 0; i < allSongs.length; i++) {
+      const s = allSongs[i];
+      if ((s._q || `${s.title} ${s.artist} ${s.genre}`.toLowerCase()).includes(t)) {
+        out.push(s);
+        if (out.length >= 6) break;
+      }
+    }
+    return out;
+  }, [deferredQ, allSongs]);
+
+  const localArtists = useMemo(() => {
+    const t = deferredQ.trim().toLowerCase();
+    if (!t) return [];
+    const out = [];
+    for (let i = 0; i < allArtists.length; i++) {
+      const a = allArtists[i];
+      if ((a._q || a.name.toLowerCase()).includes(t)) {
+        out.push(a);
+        if (out.length >= 5) break;
+      }
+    }
+    return out;
+  }, [deferredQ, allArtists]);
+
+  const mergedArtists = useMemo(() => {
     const map = new Map();
     localArtists.forEach((a) => map.set(a.name.toLowerCase(), a));
     (remote?.artists || []).forEach((a) => {
       if (!map.has(a.name.toLowerCase())) map.set(a.name.toLowerCase(), a);
     });
     return [...map.values()].slice(0, 5);
-  })();
+  }, [localArtists, remote]);
 
-  const mergedSongs = (() => {
+  const mergedSongs = useMemo(() => {
     const map = new Map();
     localSongs.forEach((s) => map.set(`${s.title.toLowerCase()}|${s.artist.toLowerCase()}`, s));
     (remote?.songs || []).forEach((s) => {
@@ -59,7 +80,7 @@ export function TopBar({ onOpenMobileMenu }) {
       if (!map.has(k)) map.set(k, s);
     });
     return [...map.values()].slice(0, 6);
-  })();
+  }, [localSongs, remote]);
 
   const submit = (e) => {
     e.preventDefault();
@@ -77,7 +98,7 @@ export function TopBar({ onOpenMobileMenu }) {
           </svg>
         </button>
         <button className="top-logo-btn" onClick={() => navigate('/')} title="Go to Home">
-          <img src="logo.jpg" alt="Apple Music" />
+          <img src="logo.jpg" alt="Apple Music" decoding="async" />
           <span>apple music</span>
         </button>
       </div>
@@ -130,7 +151,7 @@ export function TopBar({ onOpenMobileMenu }) {
                     }}
                   >
                     {a.image ? (
-                      <img className="round" src={a.image} alt={a.name} />
+                      <img className="round" src={a.image} alt={a.name} loading="lazy" decoding="async" />
                     ) : (
                       <div className="dp-avatar-fallback">{(a.name || '?')[0]}</div>
                     )}
@@ -153,7 +174,7 @@ export function TopBar({ onOpenMobileMenu }) {
                     setOpen(false);
                   }}
                 >
-                  <img src={art(s.art, 120)} alt={s.title} />
+                  <img src={art(s.art, 120)} alt={s.title} loading="lazy" decoding="async" />
                   <div className="dp-meta">
                     <div className="t">
                       {s.title} {s.lyrics === 'synced' && <Lyrics size={11} />}
@@ -186,7 +207,7 @@ function MiniPlayer() {
   return (
     <div className="mini-player glass" onClick={() => player.setNowOpen(true)}>
       <div className="mp-progress" style={{ width: `${pct}%` }} />
-      <img className="mp-art" src={art(song.art, 160)} alt="" />
+      <img className="mp-art" src={art(song.art, 160)} alt="" decoding="async" />
       <div className="mp-meta">
         <div className="mp-title">
           {song.title}

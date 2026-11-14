@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { audio, useLibrary, usePlayer } from '../store';
+import { audio, useLibrary, usePlayerActions } from '../store';
 
 // precise playback clock (timeupdate only fires ~4x/s; we extrapolate between reads)
 let lastA = -1;
@@ -19,6 +19,7 @@ function preciseTime() {
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const isCJK = (s) => /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(s);
 const isLatinWord = (s) => /^[\p{L}\p{N}'’,.!?-]+\s*$/u.test(s) && !isCJK(s);
+const getLetters = (el) => el._ll || (el._ll = [...el.querySelectorAll('.ll')]);
 
 function Word({ w, glow, refFn }) {
   if (glow) {
@@ -42,8 +43,8 @@ function Word({ w, glow, refFn }) {
   );
 }
 
-export default function LyricsView({ data, loading, song }) {
-  const player = usePlayer();
+export default function LyricsView({ data, loading, song, visible = true }) {
+  const { seek } = usePlayerActions();
   const { settings } = useLibrary();
   const lines = data?.synced ? data.lines : null;
   const offset = data?.offset || 0;
@@ -69,6 +70,12 @@ export default function LyricsView({ data, loading, song }) {
     return s;
   }, [lines]);
 
+  // Precompute CJK flags once per song instead of per-render regex
+  const cjkFlags = useMemo(
+    () => (lines ? lines.map((l) => (l.inst ? false : isCJK(l.words.map((w) => w.w).join('')))) : []),
+    [lines]
+  );
+
   useEffect(() => {
     setActive(-1);
     activeRef.current = -1;
@@ -76,20 +83,19 @@ export default function LyricsView({ data, loading, song }) {
     lastFill.current.clear();
   }, [data]);
 
-  // --------------------------------------------------- animation loop
+  // --------------------------------------------------- animation loop (only runs when visible)
   useEffect(() => {
-    if (!lines) return;
-    let raf;
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
+    if (!lines || !visible) return;
+    let raf = 0;
+
+    const updateSync = () => {
       const t = preciseTime() + offset;
-      // find active line (last line that has started)
       let a = -1;
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].t <= t + 0.05) a = i;
         else break;
       }
-      if (a >= 0 && lines[a].inst && t > lines[a].e + 0.3 && a + 1 < lines.length) a = a; // stay until next
+      if (a >= 0 && lines[a].inst && t > lines[a].e + 0.3 && a + 1 < lines.length) a = a;
       if (a !== activeRef.current) {
         const prevA = activeRef.current;
         activeRef.current = a;
@@ -99,7 +105,7 @@ export default function LyricsView({ data, loading, song }) {
             const el = wordEls.current[`${prevA}-${wi}`];
             if (el) {
               el.style.setProperty('--p', 0);
-              el.querySelectorAll('.ll').forEach((x) => x.style.setProperty('--p', 0));
+              getLetters(el).forEach((x) => x.style.setProperty('--p', 0));
             }
           });
         }
@@ -114,22 +120,55 @@ export default function LyricsView({ data, loading, song }) {
       }
       line.words.forEach((w, wi) => {
         const key = `${a}-${wi}`;
-        const p = clamp01((t - w.t) / Math.max(0.05, w.e - w.t));
+        const rawP = clamp01((t - w.t) / Math.max(0.05, w.e - w.t));
+        const p = rawP <= 0 ? 0 : rawP >= 1 ? 1 : Math.round(rawP * 250) / 250;
         if (lastFill.current.get(key) === p) return;
         lastFill.current.set(key, p);
         const el = wordEls.current[key];
         if (!el) return;
-        el.style.setProperty('--p', p.toFixed(4));
+        el.style.setProperty('--p', p);
         if (glowSet.has(key)) {
-          const ls = el.querySelectorAll('.ll');
+          const ls = getLetters(el);
           const n = ls.length;
-          ls.forEach((x, k) => x.style.setProperty('--p', clamp01(p * n - k).toFixed(3)));
+          for (let k = 0; k < n; k++) {
+            ls[k].style.setProperty('--p', clamp01(p * n - k).toFixed(3));
+          }
         }
       });
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [lines, offset, glowSet]);
+
+    const tick = () => {
+      updateSync();
+      if (!audio.paused && !document.hidden) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        raf = 0;
+      }
+    };
+
+    const start = () => {
+      updateSync();
+      if (!raf && !audio.paused && !document.hidden) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    start();
+    audio?.addEventListener('play', start);
+    audio?.addEventListener('playing', start);
+    audio?.addEventListener('seeked', start);
+    audio?.addEventListener('timeupdate', updateSync);
+    document.addEventListener('visibilitychange', start);
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      audio?.removeEventListener('play', start);
+      audio?.removeEventListener('playing', start);
+      audio?.removeEventListener('seeked', start);
+      audio?.removeEventListener('timeupdate', updateSync);
+      document.removeEventListener('visibilitychange', start);
+    };
+  }, [lines, offset, glowSet, visible]);
 
   // --------------------------------------------------- auto scroll
   const targetFor = useCallback((a) => {
@@ -140,14 +179,15 @@ export default function LyricsView({ data, loading, song }) {
   }, []);
 
   useLayoutEffect(() => {
-    if (!manual) setScrollY(targetFor(active));
-  }, [active, manual, targetFor]);
+    if (visible && !manual) setScrollY(targetFor(active));
+  }, [active, manual, visible, targetFor]);
 
   useEffect(() => {
+    if (!visible) return;
     const on = () => !manual && setScrollY(targetFor(activeRef.current));
     window.addEventListener('resize', on);
     return () => window.removeEventListener('resize', on);
-  }, [manual, targetFor]);
+  }, [manual, visible, targetFor]);
 
   const bumpManual = () => {
     setManual(true);
@@ -207,9 +247,6 @@ export default function LyricsView({ data, loading, song }) {
     );
   }
 
-  // Full-song playback: every line in the song is directly clickable & seekable!
-  const inWindow = () => true;
-
   return (
     <div
       className={`lyrics-wrap synced ${manual ? 'manual' : ''}`}
@@ -221,12 +258,13 @@ export default function LyricsView({ data, loading, song }) {
     >
       {lines.map((l, i) => {
         const dist = Math.abs(i - active);
-        const delay = manual ? 0 : Math.max(0, Math.min(i - active + 1, 9)) * 42;
-        const playable = inWindow(l);
+        const farOffscreen = !manual && active >= 0 && (i < active - 5 || i > active + 9);
+        const delay = manual || farOffscreen ? 0 : Math.max(0, Math.min(i - active + 1, 9)) * 42;
         const style = {
           transform: `translate3d(0, ${-scrollY}px, 0)`,
           transitionDelay: `${delay}ms, ${delay}ms, 0ms, 0ms`,
-          '--blur': manual || i === active ? '0px' : `${Math.min(dist, 5) * 0.55}px`,
+          '--blur': manual || farOffscreen || i === active ? '0px' : `${Math.min(dist, 5) * 0.55}px`,
+          visibility: farOffscreen ? 'hidden' : 'visible',
         };
         if (l.inst) {
           return (
@@ -237,14 +275,13 @@ export default function LyricsView({ data, loading, song }) {
             </div>
           );
         }
-        const cjk = isCJK(l.words.map((w) => w.w).join(''));
         return (
           <div
             key={i}
             ref={(el) => (lineEls.current[i] = el)}
-            className={`ll-line ${i === active ? 'active' : ''} ${i < active ? 'past' : ''} ${playable ? 'playable' : ''} ${cjk ? 'cjk' : ''}`}
+            className={`ll-line ${i === active ? 'active' : ''} ${i < active ? 'past' : ''} playable ${cjkFlags[i] ? 'cjk' : ''}`}
             style={style}
-            onClick={() => playable && player.seek(l.t - offset + 0.02)}
+            onClick={() => seek(l.t - offset + 0.02)}
           >
             {l.words.map((w, wi) => (
               <Word key={wi} w={w} glow={glowSet.has(`${i}-${wi}`)} refFn={(el) => (wordEls.current[`${i}-${wi}`] = el)} />

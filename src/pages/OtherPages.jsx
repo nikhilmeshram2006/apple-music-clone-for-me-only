@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { albumLookup, art, artistImage, searchAll } from '../api';
 import FluidBackground from '../components/FluidBackground';
 import {
@@ -6,20 +6,21 @@ import {
   Shuffle, Star, Trash, User, Wave,
 } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
-import { fmt, useCatalog, useLibrary, usePlayer, useRouter } from '../store';
+import { fmt, useCatalog, useLibrary, usePlayerActions, useRouter } from '../store';
 
 // ================================================================== SEARCH / BROWSE
 export function SearchPage({ initialQuery = '' }) {
   const catalog = useCatalog();
   const { navigate } = useRouter();
   const [q, setQ] = useState(initialQuery);
+  const deferredQ = useDeferredValue(q);
   const [remote, setRemote] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => setQ(initialQuery), [initialQuery]);
 
   useEffect(() => {
-    const term = q.trim();
+    const term = deferredQ.trim();
     if (!term) {
       setRemote(null);
       return;
@@ -43,19 +44,28 @@ export function SearchPage({ initialQuery = '' }) {
         .catch(() => setBusy(false));
     }, 220);
     return () => clearTimeout(id);
-  }, [q, catalog]);
+  }, [deferredQ, catalog]);
+
+  const allSongs = useMemo(() => Object.values(catalog.songs), [catalog]);
+  const allArtists = useMemo(
+    () =>
+      Object.values(catalog.artists)
+        .filter((a) => a.image)
+        .sort((a, b) => (b.fans || 0) - (a.fans || 0)),
+    [catalog]
+  );
 
   const localSongs = useMemo(() => {
-    if (!q.trim()) return [];
-    const t = q.toLowerCase();
-    return Object.values(catalog.songs).filter((s) => `${s.title} ${s.artist} ${s.album} ${s.genre}`.toLowerCase().includes(t));
-  }, [q, catalog]);
+    const t = deferredQ.trim().toLowerCase();
+    if (!t) return [];
+    return allSongs.filter((s) => (s._q || `${s.title} ${s.artist} ${s.album} ${s.genre}`.toLowerCase()).includes(t));
+  }, [deferredQ, allSongs]);
 
   const localArtists = useMemo(() => {
-    if (!q.trim()) return [];
-    const t = q.toLowerCase();
-    return Object.values(catalog.artists).filter((a) => a.name.toLowerCase().includes(t));
-  }, [q, catalog]);
+    const t = deferredQ.trim().toLowerCase();
+    if (!t) return [];
+    return Object.values(catalog.artists).filter((a) => (a._q || a.name.toLowerCase()).includes(t));
+  }, [deferredQ, catalog]);
 
   const songs = useMemo(() => {
     const map = new Map();
@@ -70,15 +80,6 @@ export function SearchPage({ initialQuery = '' }) {
     (remote?.artists || []).forEach((a) => !map.has(a.id) && map.set(a.id, a));
     return [...map.values()];
   }, [localArtists, remote]);
-
-  const allSongs = useMemo(() => Object.values(catalog.songs), [catalog]);
-  const allArtists = useMemo(
-    () =>
-      Object.values(catalog.artists)
-        .filter((a) => a.image)
-        .sort((a, b) => (b.fans || 0) - (a.fans || 0)),
-    [catalog]
-  );
 
   return (
     <div className="page search-page">
@@ -203,7 +204,7 @@ export function SearchPage({ initialQuery = '' }) {
 // ================================================================== GENRE PAGE
 export function GenrePage({ id }) {
   const catalog = useCatalog();
-  const player = usePlayer();
+  const player = usePlayerActions();
   const { navigate } = useRouter();
   const g = catalog.genres.find((x) => x.id === id);
   const songs = useMemo(() => Object.values(catalog.songs).filter((s) => s.genre === id), [catalog, id]);
@@ -256,7 +257,7 @@ export function GenrePage({ id }) {
 
 // ================================================================== ALBUM PAGE
 export function AlbumPage({ id }) {
-  const player = usePlayer();
+  const player = usePlayerActions();
   const { navigate } = useRouter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -309,7 +310,7 @@ export function AlbumPage({ id }) {
 export function LibraryPage() {
   const catalog = useCatalog();
   const lib = useLibrary();
-  const player = usePlayer();
+  const player = usePlayerActions();
   const { navigate } = useRouter();
   const [tab, setTab] = useState('favorites');
 
@@ -446,7 +447,7 @@ export function LibraryPage() {
 // ================================================================== PLAYLIST PAGE
 export function PlaylistPage({ id }) {
   const lib = useLibrary();
-  const player = usePlayer();
+  const player = usePlayerActions();
   const { navigate } = useRouter();
   const pl = lib.playlists.find((p) => p.id === id);
 

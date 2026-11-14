@@ -1,8 +1,33 @@
 import { useEffect, useRef } from 'react';
 
-// Apple-Music-style "living artwork" background: several copies of the image
-// slowly orbit/rotate on a tiny canvas, which is then upscaled + blurred by CSS.
-// Cheap (72x72 px of drawing per frame) yet looks like a fluid mesh gradient.
+// Apple-Music-style "living artwork" background: several copies of a pre-softened
+// sprite slowly orbit/rotate on a tiny 56x56 canvas, upscaled by the GPU.
+// Automatically pauses its rAF loop when scrolled off-screen or hidden.
+
+const W = 56;
+const H = 56;
+
+function bakeSprite(img) {
+  try {
+    const tmp = document.createElement('canvas');
+    tmp.width = 18;
+    tmp.height = 18;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(img, 0, 0, 18, 18);
+
+    const sp = document.createElement('canvas');
+    sp.width = W;
+    sp.height = H;
+    const sctx = sp.getContext('2d');
+    if (typeof sctx.filter === 'string') {
+      sctx.filter = 'blur(4px) saturate(1.85) contrast(1.1)';
+    }
+    sctx.drawImage(tmp, -4, -4, W + 8, H + 8);
+    return sp;
+  } catch {
+    return img;
+  }
+}
 
 const cache = new Map();
 function loadImg(src) {
@@ -10,10 +35,12 @@ function loadImg(src) {
   const p = new Promise((res) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => res(img);
+    img.decoding = 'async';
+    img.onload = () => res(bakeSprite(img));
     img.onerror = () => {
-      const i2 = new Image(); // retry without CORS (canvas gets tainted but still draws)
-      i2.onload = () => res(i2);
+      const i2 = new Image();
+      i2.decoding = 'async';
+      i2.onload = () => res(bakeSprite(i2));
       i2.onerror = () => res(null);
       i2.src = src;
     };
@@ -23,8 +50,6 @@ function loadImg(src) {
   return p;
 }
 
-const W = 72;
-const H = 72;
 const blobs = [
   { x: 0.28, y: 0.3, s: 1.15, r: 0.05, ox: 0.08, oy: 0.06, f: 0.11 },
   { x: 0.78, y: 0.72, s: 1.0, r: -0.07, ox: 0.07, oy: 0.09, f: 0.09 },
@@ -48,11 +73,13 @@ function scene(ctx, img, t) {
   }
 }
 
-export default function FluidBackground({ src, className = '', speed = 1, dim = 0.3, paused = false }) {
+export default function FluidBackground({ src, className = '', speed = 1, dim = 0.3, paused = false, active = true }) {
+  const wrapRef = useRef(null);
   const ref = useRef(null);
-  const state = useRef({ cur: null, prev: null, fade: 1, speed, paused });
+  const state = useRef({ cur: null, prev: null, fade: 1, speed, paused, active, inView: true, startLoop: null });
   state.current.speed = speed;
   state.current.paused = paused;
+  state.current.active = active;
 
   useEffect(() => {
     let alive = true;
@@ -64,6 +91,8 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
       s.prev = s.cur;
       s.cur = img;
       s.fadeStart = performance.now();
+      s.drawOnce?.();
+      s.startLoop?.();
     });
     return () => {
       alive = false;
@@ -71,46 +100,102 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
   }, [src]);
 
   useEffect(() => {
+    state.current.startLoop?.();
+  }, [active, paused]);
+
+  useEffect(() => {
     const cv = ref.current;
+    const wrap = wrapRef.current;
+    if (!cv || !wrap) return;
     cv.width = W;
     cv.height = H;
-    const ctx = cv.getContext('2d');
+    const ctx = cv.getContext('2d', { alpha: false });
     const off = document.createElement('canvas');
     off.width = W;
     off.height = H;
-    const octx = off.getContext('2d');
-    let raf;
+    const octx = off.getContext('2d', { alpha: false });
+    let raf = 0;
     let t = Math.random() * 100;
     let last = performance.now();
     let acc = 0;
-    const loop = (now) => {
-      raf = requestAnimationFrame(loop);
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      acc += dt;
-      if (acc < 1 / 30) return; // 30fps is plenty for a blurred background
+
+    const renderFrame = (now) => {
       const s = state.current;
-      t += acc * (s.paused ? 0.25 : 1) * s.speed;
-      acc = 0;
       if (!s.cur) return;
       const fade = s.fadeStart ? Math.min(1, (now - s.fadeStart) / 1200) : 1;
       if (s.prev && fade < 1) {
         scene(ctx, s.prev, t);
-        octx.clearRect(0, 0, W, H);
         scene(octx, s.cur, t);
         ctx.globalAlpha = fade;
         ctx.drawImage(off, 0, 0);
         ctx.globalAlpha = 1;
       } else {
+        s.prev = null;
         scene(ctx, s.cur, t);
       }
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+
+    const shouldRun = () => {
+      const s = state.current;
+      return Boolean(s.active && s.inView && !document.hidden && s.cur);
+    };
+
+    const loop = (now) => {
+      if (!shouldRun()) {
+        raf = 0;
+        return;
+      }
+      raf = requestAnimationFrame(loop);
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      acc += dt;
+      const s = state.current;
+      const interval = s.paused ? 1 / 12 : 1 / 22;
+      if (acc < interval) return;
+      t += acc * (s.paused ? 0.22 : 1) * s.speed;
+      acc = 0;
+      renderFrame(now);
+    };
+
+    const startLoop = () => {
+      if (!raf && shouldRun()) {
+        last = performance.now();
+        raf = requestAnimationFrame(loop);
+      }
+    };
+
+    state.current.drawOnce = () => renderFrame(performance.now());
+    state.current.startLoop = startLoop;
+
+    let io;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (!entry) return;
+          state.current.inView = entry.isIntersecting;
+          if (entry.isIntersecting) startLoop();
+        },
+        { rootMargin: '80px' }
+      );
+      io.observe(wrap);
+    }
+
+    const onVis = () => {
+      if (!document.hidden) startLoop();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    startLoop();
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      io?.disconnect();
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
 
   return (
-    <div className={`fluid ${className}`} aria-hidden="true">
+    <div ref={wrapRef} className={`fluid ${className}`} aria-hidden="true">
       <canvas ref={ref} />
       <div className="fluid-dim" style={{ background: `rgba(0,0,0,${dim})` }} />
     </div>

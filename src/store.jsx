@@ -37,7 +37,8 @@ export function RouterProvider({ children }) {
     return () => window.removeEventListener('hashchange', on);
   }, []);
   const navigate = useCallback((p) => (window.location.hash = p), []);
-  return <RouterCtx.Provider value={{ path, navigate }}>{children}</RouterCtx.Provider>;
+  const rVal = useMemo(() => ({ path, navigate }), [path, navigate]);
+  return <RouterCtx.Provider value={rVal}>{children}</RouterCtx.Provider>;
 }
 export const useRouter = () => useContext(RouterCtx);
 
@@ -50,7 +51,11 @@ export function CatalogProvider({ value, children }) {
 
 // ------------------------------------------------------------------ library
 const LibraryCtx = createContext(null);
+const LikedCtx = createContext(null);
+const ToastCtx = createContext(null);
 export const useLibrary = () => useContext(LibraryCtx);
+export const useLiked = () => useContext(LikedCtx);
+export const useToast = () => useContext(ToastCtx);
 export function LibraryProvider({ children }) {
   const [liked, setLiked] = usePersisted('liked', []); // song objects
   const [recent, setRecent] = usePersisted('recent', []); // song objects
@@ -69,7 +74,8 @@ export function LibraryProvider({ children }) {
   }, []);
 
   const slim = (s) => ({ ...s });
-  const isLiked = useCallback((id) => liked.some((s) => s.id === id), [liked]);
+  const likedSet = useMemo(() => new Set(liked.map((s) => s.id)), [liked]);
+  const isLiked = useCallback((id) => likedSet.has(id), [likedSet]);
   const toggleLike = useCallback(
     (song) => {
       setLiked((l) => {
@@ -84,7 +90,8 @@ export function LibraryProvider({ children }) {
     (song) => setRecent((r) => [slim(song), ...r.filter((s) => s.id !== song.id)].slice(0, 40)),
     [setRecent]
   );
-  const isFollowing = useCallback((id) => following.some((a) => a.id === id), [following]);
+  const followingSet = useMemo(() => new Set(following.map((a) => a.id)), [following]);
+  const isFollowing = useCallback((id) => followingSet.has(id), [followingSet]);
   const toggleFollow = useCallback(
     (a) => {
       setFollowing((f) => {
@@ -146,27 +153,45 @@ export function LibraryProvider({ children }) {
     [setStats]
   );
   const countPlay = useCallback(() => setStats((st) => ({ ...st, plays: st.plays + 1 })), [setStats]);
-  const resetAll = () => {
+  const resetAll = useCallback(() => {
     setLiked([]);
     setRecent([]);
     setPlaylists([]);
     setFollowing([]);
     setStats({ seconds: 0, plays: 0, byArtist: {}, byGenre: {} });
     notify('Cleared local library & listening history', 'success');
-  };
+  }, [setLiked, setRecent, setPlaylists, setFollowing, setStats, notify]);
 
-  const value = {
-    liked, isLiked, toggleLike, recent, pushRecent, playlists, createPlaylist, addToPlaylist, removeFromPlaylist,
-    deletePlaylist, following, isFollowing, toggleFollow, stats, addListen, countPlay, profile, setProfile,
-    settings, setSettings, resetAll, toast, notify,
-  };
-  return <LibraryCtx.Provider value={value}>{children}</LibraryCtx.Provider>;
+  const likedVal = useMemo(() => ({ isLiked, toggleLike }), [isLiked, toggleLike]);
+  const value = useMemo(
+    () => ({
+      liked, isLiked, toggleLike, recent, pushRecent, playlists, createPlaylist, addToPlaylist, removeFromPlaylist,
+      deletePlaylist, following, isFollowing, toggleFollow, stats, addListen, countPlay, profile, setProfile,
+      settings, setSettings, resetAll, notify,
+    }),
+    [
+      liked, isLiked, toggleLike, recent, pushRecent, playlists, createPlaylist, addToPlaylist, removeFromPlaylist,
+      deletePlaylist, following, isFollowing, toggleFollow, stats, addListen, countPlay, profile, setProfile,
+      settings, setSettings, resetAll, notify,
+    ]
+  );
+  return (
+    <ToastCtx.Provider value={toast}>
+      <LikedCtx.Provider value={likedVal}>
+        <LibraryCtx.Provider value={value}>{children}</LibraryCtx.Provider>
+      </LikedCtx.Provider>
+    </ToastCtx.Provider>
+  );
 }
 
 // ------------------------------------------------------------------ player
 const PlayerCtx = createContext(null);
+const PlayerActionsCtx = createContext(null);
+const ActiveSongCtx = createContext(null);
 const TimeCtx = createContext(null);
 export const usePlayer = () => useContext(PlayerCtx);
+export const usePlayerActions = () => useContext(PlayerActionsCtx);
+export const useActiveSong = () => useContext(ActiveSongCtx);
 export const usePlayerTime = () => useContext(TimeCtx);
 
 export const audio = typeof Audio !== 'undefined' ? new Audio() : null;
@@ -272,25 +297,43 @@ export function PlayerProvider({ children }) {
 
   useEffect(() => {
     if (!audio) return;
+    let lastTimeUpdate = -1;
+    const flushListen = () => {
+      const cur = st.current.current;
+      if (cur && listenRef.current.acc > 0.5) {
+        lib.addListen(cur, Math.round(listenRef.current.acc));
+        listenRef.current.acc = 0;
+      }
+    };
     const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
+    const onPause = () => {
+      setPlaying(false);
+      flushListen();
+    };
     const onTime = () => {
-      setTime({ t: audio.currentTime, d: audio.duration || 30 });
+      const now = audio.currentTime;
+      const dur = audio.duration || 30;
+      if (Math.abs(now - lastTimeUpdate) >= 0.25 || now < 0.3) {
+        lastTimeUpdate = now;
+        setTime({ t: now, d: dur });
+      }
       const cur = st.current.current;
       if (cur && !audio.paused) {
-        const now = audio.currentTime;
         const delta = now - listenRef.current.last;
         if (delta > 0 && delta < 2) {
           listenRef.current.acc = (listenRef.current.acc || 0) + delta;
-          if (listenRef.current.acc >= 5) {
-            lib.addListen(cur, listenRef.current.acc);
+          if (listenRef.current.acc >= 30) {
+            lib.addListen(cur, Math.round(listenRef.current.acc));
             listenRef.current.acc = 0;
           }
         }
         listenRef.current.last = now;
       }
     };
-    const onEnded = () => next(true);
+    const onEnded = () => {
+      flushListen();
+      next(true);
+    };
     const onWaiting = () => setLoading(true);
     const onCanPlay = () => setLoading(false);
     const onErr = () => {
@@ -364,6 +407,7 @@ export function PlayerProvider({ children }) {
     if (audio.paused) audio.play().catch(() => {});
   }, []);
 
+  const notifyFn = lib.notify;
   const addNext = useCallback(
     (song) => {
       setQueue((q) => {
@@ -376,9 +420,9 @@ export function PlayerProvider({ children }) {
         rest.splice(i + 1, 0, song);
         return rest;
       });
-      lib.notify(`Playing “${song.title}” next`, 'success');
+      notifyFn(`Playing “${song.title}” next`, 'success');
     },
-    [lib]
+    [notifyFn]
   );
 
   const addLater = useCallback(
@@ -390,9 +434,9 @@ export function PlayerProvider({ children }) {
         }
         return [...q, song];
       });
-      lib.notify(`Added “${song.title}” to the end of queue`, 'success');
+      notifyFn(`Added “${song.title}” to the end of queue`, 'success');
     },
-    [lib]
+    [notifyFn]
   );
 
   const toggleShuffle = useCallback(() => {
@@ -409,6 +453,7 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const cycleRepeat = useCallback(() => setRepeat((r) => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off')), []);
+  const nextManual = useCallback(() => next(false), [next]);
 
   // keyboard shortcuts
   useEffect(() => {
@@ -427,18 +472,35 @@ export function PlayerProvider({ children }) {
     return () => window.removeEventListener('keydown', on);
   }, [toggle, next, prev, seek]);
 
+  const actions = useMemo(
+    () => ({
+      setVolume: setVolumeS, setNowOpen, playList, playSong, toggle, next: nextManual, prev, seek,
+      addNext, addLater, toggleShuffle, cycleRepeat, jumpTo: setIndex,
+    }),
+    [playList, playSong, toggle, nextManual, prev, seek, addNext, addLater, toggleShuffle, cycleRepeat]
+  );
+
+  const currentId = current?.id || null;
+  const activeSongVal = useMemo(
+    () => ({ currentId, playing, playSong, toggle }),
+    [currentId, playing, playSong, toggle]
+  );
+
   const value = useMemo(
     () => ({
       queue, index, current, playing, loading, shuffle, repeat, volume, nowOpen, error,
-      setVolume: setVolumeS, setNowOpen, playList, playSong, toggle, next: () => next(false), prev, seek,
-      addNext, addLater, toggleShuffle, cycleRepeat, jumpTo: setIndex,
+      ...actions,
     }),
-    [queue, index, current, playing, loading, shuffle, repeat, volume, nowOpen, error, playList, playSong, toggle, next, prev, seek, addNext, addLater, toggleShuffle, cycleRepeat]
+    [queue, index, current, playing, loading, shuffle, repeat, volume, nowOpen, error, actions]
   );
   return (
-    <PlayerCtx.Provider value={value}>
-      <TimeCtx.Provider value={time}>{children}</TimeCtx.Provider>
-    </PlayerCtx.Provider>
+    <PlayerActionsCtx.Provider value={actions}>
+      <ActiveSongCtx.Provider value={activeSongVal}>
+        <PlayerCtx.Provider value={value}>
+          <TimeCtx.Provider value={time}>{children}</TimeCtx.Provider>
+        </PlayerCtx.Provider>
+      </ActiveSongCtx.Provider>
+    </PlayerActionsCtx.Provider>
   );
 }
 

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { art } from '../api';
-import { fmt, useLibrary, usePlayer, useRouter } from '../store';
+import { fmt, useActiveSong, useLibrary, useLiked, usePlayerActions, useRouter } from '../store';
 import { Check, Explicit, Heart, Lyrics, More, Pause, Play, Plus, Queue, User } from './Icons';
 
 export function Bars() {
@@ -12,7 +12,7 @@ export function Bars() {
 }
 
 export function SongMenu({ song, onClose }) {
-  const player = usePlayer();
+  const player = usePlayerActions();
   const lib = useLibrary();
   const { navigate } = useRouter();
   const ref = useRef(null);
@@ -69,28 +69,27 @@ export function SongMenu({ song, onClose }) {
   );
 }
 
-export function SongRow({ song, list, index, showArt = true, showIndex = false, compact = false, rightSlot }) {
-  const player = usePlayer();
-  const lib = useLibrary();
-  const { navigate } = useRouter();
+export const SongRow = memo(function SongRow({ song, list, index, showArt = true, showIndex = false, compact = false, rightSlot }) {
+  const { currentId, playing, playSong, toggle } = useActiveSong();
+  const { isLiked, toggleLike } = useLiked();
   const [menu, setMenu] = useState(false);
-  const active = player.current?.id === song.id;
-  const liked = lib.isLiked(song.id);
+  const active = currentId === song.id;
+  const liked = isLiked(song.id);
 
   return (
     <div
       className={`song-row ${active ? 'active' : ''} ${compact ? 'compact' : ''}`}
-      onClick={() => (active ? player.toggle() : player.playSong(song, list))}
+      onClick={() => (active ? toggle() : playSong(song, list))}
     >
       {showIndex && (
         <span className="sr-idx">
-          {active && player.playing ? <Bars /> : active ? <Play size={14} /> : index + 1}
+          {active && playing ? <Bars /> : active ? <Play size={14} /> : index + 1}
         </span>
       )}
       {showArt && (
         <div className="sr-art">
-          <img src={art(song.art, 160)} alt="" loading="lazy" />
-          <div className="sr-art-over">{active && player.playing ? <Bars /> : <Play size={18} />}</div>
+          <img src={art(song.art, 160)} alt="" loading="lazy" decoding="async" />
+          <div className="sr-art-over">{active && playing ? <Bars /> : <Play size={18} />}</div>
         </div>
       )}
       <div className="sr-meta">
@@ -104,7 +103,7 @@ export function SongRow({ song, list, index, showArt = true, showIndex = false, 
             className="link"
             onClick={(e) => {
               e.stopPropagation();
-              if (song.artistId) navigate(`/artist/${song.artistId}`);
+              if (song.artistId) window.location.hash = `/artist/${song.artistId}`;
             }}
           >
             {song.artist}
@@ -118,7 +117,7 @@ export function SongRow({ song, list, index, showArt = true, showIndex = false, 
         title="Favorite"
         onClick={(e) => {
           e.stopPropagation();
-          lib.toggleLike(song);
+          toggleLike(song);
         }}
       >
         <Heart size={16} filled={liked} />
@@ -132,36 +131,35 @@ export function SongRow({ song, list, index, showArt = true, showIndex = false, 
       </div>
     </div>
   );
-}
+});
 
-export function SongCard({ song, list, subtitle }) {
-  const player = usePlayer();
-  const { navigate } = useRouter();
-  const active = player.current?.id === song.id;
+export const SongCard = memo(function SongCard({ song, list, subtitle }) {
+  const { currentId, playing, playSong, toggle } = useActiveSong();
+  const active = currentId === song.id;
   const [hover, setHover] = useState(false);
   return (
     <div
       className="song-card"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={() => (active ? player.toggle() : player.playSong(song, list))}
+      onMouseEnter={() => song.videoArt && setHover(true)}
+      onMouseLeave={() => song.videoArt && setHover(false)}
+      onClick={() => (active ? toggle() : playSong(song, list))}
     >
       <div className="sc-art">
         {song.videoArt && (hover || active) ? (
           <video
             className="sc-video"
             src={song.videoArt}
-            poster={art(song.art, 600)}
+            poster={art(song.art, 300)}
             autoPlay
             loop
             muted
             playsInline
           />
         ) : (
-          <img src={art(song.art, 600)} alt={song.title} loading="lazy" />
+          <img src={art(song.art, 300)} alt={song.title} loading="lazy" decoding="async" />
         )}
         <button className="sc-play" aria-label="Play">
-          {active && player.playing ? <Pause size={18} /> : <Play size={18} />}
+          {active && playing ? <Pause size={18} /> : <Play size={18} />}
         </button>
         {song.videoArt && (
           <span className="sc-motion-pill" title="Official Apple Music Animated Cover">Motion</span>
@@ -181,7 +179,7 @@ export function SongCard({ song, list, subtitle }) {
         onClick={(e) => {
           if (song.artistId) {
             e.stopPropagation();
-            navigate(`/artist/${song.artistId}`);
+            window.location.hash = `/artist/${song.artistId}`;
           }
         }}
       >
@@ -189,22 +187,21 @@ export function SongCard({ song, list, subtitle }) {
       </div>
     </div>
   );
-}
+});
 
-export function ArtistBubble({ artist, size = 'md' }) {
-  const { navigate } = useRouter();
+export const ArtistBubble = memo(function ArtistBubble({ artist, size = 'md' }) {
   const initials = (artist.name || '?')
     .split(/\s+/)
     .slice(0, 2)
     .map((x) => x[0])
     .join('');
   return (
-    <div className={`artist-bubble ${size}`} onClick={() => navigate(`/artist/${artist.id}`)}>
+    <div className={`artist-bubble ${size}`} onClick={() => { window.location.hash = `/artist/${artist.id}`; }}>
       <div className="ab-img" style={{ background: artist.colors?.[0] || '#2c2c2e' }}>
-        {artist.image ? <img src={artist.image} alt={artist.name} loading="lazy" /> : <span>{initials}</span>}
+        {artist.image ? <img src={artist.image} alt={artist.name} loading="lazy" decoding="async" /> : <span>{initials}</span>}
       </div>
       <div className="ab-name">{artist.name}</div>
       {artist.genre && <div className="ab-sub">{artist.genre}</div>}
     </div>
   );
-}
+});

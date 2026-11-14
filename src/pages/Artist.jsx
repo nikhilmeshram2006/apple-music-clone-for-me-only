@@ -3,7 +3,7 @@ import { art, artistImage, artistLookup } from '../api';
 import FluidBackground from '../components/FluidBackground';
 import { Back, Check, Lyrics, Pause, Play, Shuffle, Star } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
-import { useCatalog, useLibrary, usePlayer, useRouter } from '../store';
+import { useActiveSong, useCatalog, useLibrary, usePlayerActions, useRouter } from '../store';
 
 const BIO_BLURBS = {
   Pop: 'Chart-dominating hooks, widescreen production, and unmistakable vocal presence that define modern pop radio.',
@@ -15,7 +15,8 @@ const BIO_BLURBS = {
 
 export default function ArtistPage({ id }) {
   const catalog = useCatalog();
-  const player = usePlayer();
+  const player = usePlayerActions();
+  const { currentId, playing, toggle, playSong } = useActiveSong();
   const lib = useLibrary();
   const { navigate } = useRouter();
   const seeded = catalog.artists[id];
@@ -69,7 +70,7 @@ export default function ArtistPage({ id }) {
   const motionVideo = localSongs.find((s) => s.videoArt)?.videoArt || null;
   const portrait = heroImg || (essential && art(essential.art, 1000));
   const followed = lib.isFollowing(id);
-  const artistPlaying = songs.some((s) => s.id === player.current?.id) && player.playing;
+  const artistPlaying = playing && songs.some((s) => s.id === currentId);
 
   const related = useMemo(
     () =>
@@ -130,7 +131,7 @@ export default function ArtistPage({ id }) {
           <div className="ah-playbar">
             <button
               className="ah-play-main"
-              onClick={() => (artistPlaying ? player.toggle() : player.playList(songs, 0))}
+              onClick={() => (artistPlaying ? toggle() : player.playList(songs, 0))}
               aria-label="Play artist"
             >
               {artistPlaying ? <Pause size={26} /> : <Play size={26} />}
@@ -151,7 +152,7 @@ export default function ArtistPage({ id }) {
               <div
                 className="feat-release"
                 onClick={() => {
-                  player.playSong(essential, songs);
+                  playSong(essential, songs);
                   if (essential.lyrics === 'synced') player.setNowOpen(true);
                 }}
               >
