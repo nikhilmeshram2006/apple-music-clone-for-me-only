@@ -22,24 +22,30 @@ const isLatinWord = (s) => /^[\p{L}\p{N}'’,.!?-]+\s*$/u.test(s) && !isCJK(s);
 const getLetters = (el) => el._ll || (el._ll = [...el.querySelectorAll('.ll')]);
 
 function Word({ w, glow, refFn }) {
+  const trail = w.w.match(/\s*$/)[0];
+  const core = w.w.trimEnd();
   if (glow) {
-    const trail = w.w.match(/\s*$/)[0];
-    const letters = [...w.w.trimEnd()];
+    const letters = [...core];
     return (
-      <span className="lw glow" ref={refFn} data-letters={letters.length}>
-        {letters.map((c, i) => (
-          <span key={i} className="ll">
-            {c}
-          </span>
-        ))}
+      <>
+        <span className="lw glow" ref={refFn} data-letters={letters.length}>
+          {letters.map((c, i) => (
+            <span key={i} className="ll">
+              {c}
+            </span>
+          ))}
+        </span>
         {trail}
-      </span>
+      </>
     );
   }
   return (
-    <span className="lw" ref={refFn}>
-      {w.w}
-    </span>
+    <>
+      <span className="lw" ref={refFn}>
+        {core}
+      </span>
+      {trail}
+    </>
   );
 }
 
@@ -58,13 +64,13 @@ export default function LyricsView({ data, loading, song, visible = true }) {
   const activeRef = useRef(-1);
   const lastFill = useRef(new Map());
 
-  // glow (per-letter) for long, sustained latin words – like Apple Music
+  // glow (per-letter) for sustained words – like Apple Music Sing
   const glowSet = useMemo(() => {
     const s = new Set();
     lines?.forEach((l, li) =>
       l.words?.forEach((w, wi) => {
         const len = w.w.trim().length;
-        if (w.e - w.t >= 1.05 && len >= 2 && len <= 10 && isLatinWord(w.w)) s.add(`${li}-${wi}`);
+        if (w.e - w.t >= 0.48 && len >= 2 && len <= 12 && isLatinWord(w.w)) s.add(`${li}-${wi}`);
       })
     );
     return s;
@@ -105,7 +111,13 @@ export default function LyricsView({ data, loading, song, visible = true }) {
             const el = wordEls.current[`${prevA}-${wi}`];
             if (el) {
               el.style.setProperty('--p', 0);
-              getLetters(el).forEach((x) => x.style.setProperty('--p', 0));
+              el.style.setProperty('--g', 0);
+              el.style.setProperty('--lift', 0);
+              getLetters(el).forEach((x) => {
+                x.style.setProperty('--p', 0);
+                x.style.setProperty('--g', 0);
+                x.style.setProperty('--lift', 0);
+              });
             }
           });
         }
@@ -126,12 +138,21 @@ export default function LyricsView({ data, loading, song, visible = true }) {
         lastFill.current.set(key, p);
         const el = wordEls.current[key];
         if (!el) return;
+        const bell = p > 0 && p < 1 ? Math.sin(p * Math.PI) : 0;
+        const g = p <= 0 ? 0 : p >= 1 ? 0.65 : Math.min(1, p * 0.6 + bell * 0.72);
         el.style.setProperty('--p', p);
+        el.style.setProperty('--g', g.toFixed(3));
+        el.style.setProperty('--lift', bell.toFixed(3));
         if (glowSet.has(key)) {
           const ls = getLetters(el);
           const n = ls.length;
           for (let k = 0; k < n; k++) {
-            ls[k].style.setProperty('--p', clamp01(p * n - k).toFixed(3));
+            const lp = clamp01(p * n - k);
+            const lBell = lp > 0 && lp < 1 ? Math.sin(lp * Math.PI) : 0;
+            const lg = lp <= 0 ? 0 : lp >= 1 ? 0.72 : Math.min(1, lp * 0.55 + lBell * 0.85);
+            ls[k].style.setProperty('--p', lp.toFixed(3));
+            ls[k].style.setProperty('--g', lg.toFixed(3));
+            ls[k].style.setProperty('--lift', lBell.toFixed(3));
           }
         }
       });
