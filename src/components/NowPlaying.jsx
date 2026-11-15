@@ -63,9 +63,30 @@ export default function NowPlaying() {
   const { navigate } = useRouter();
   const song = player.current;
   const [panel, setPanel] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 960 ? 'art' : 'lyrics')); // 'art' | 'lyrics' | 'queue'
+  const [artAnim, setArtAnim] = useState(''); // 'going-down' | 'going-up' | 'dip-down'
+  const [panelAnimKey, setPanelAnimKey] = useState(0);
+  const animTimerRef = useRef(null);
   const [lyrics, setLyrics] = useState(null);
   const [lyrLoading, setLyrLoading] = useState(false);
   const [menu, setMenu] = useState(false);
+
+  const switchPanel = (target) => {
+    const next = panel === target ? 'art' : target;
+    if (next === panel) return;
+    let anim = 'dip-down';
+    if (panel === 'art' && (next === 'lyrics' || next === 'queue')) {
+      anim = 'going-down';
+    } else if ((panel === 'lyrics' || panel === 'queue') && next === 'art') {
+      anim = 'going-up';
+    }
+    setPanel(next);
+    setArtAnim(anim);
+    setPanelAnimKey((k) => k + 1);
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    animTimerRef.current = setTimeout(() => setArtAnim(''), 620);
+  };
+
+  useEffect(() => () => animTimerRef.current && clearTimeout(animTimerRef.current), []);
 
   useEffect(() => {
     if (!song) return;
@@ -91,7 +112,7 @@ export default function NowPlaying() {
   };
 
   return (
-    <div className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel}`} aria-hidden={!player.nowOpen}>
+    <div className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel} ${artAnim ? `anim-${artAnim}` : ''}`} aria-hidden={!player.nowOpen}>
       <FluidBackground src={art(song.art, 300)} speed={1.1} dim={0.38} paused={!player.playing} active={player.nowOpen} />
       <div className="np-sheet">
         <button className="np-dismiss" onClick={() => player.setNowOpen(false)} aria-label="Collapse player">
@@ -102,7 +123,7 @@ export default function NowPlaying() {
         <div className="np-body">
           {/* LEFT: artwork + transport */}
           <div className="np-left">
-            <div className={`np-art-stage ${player.playing ? 'playing' : 'paused'} ${song.videoArt ? 'has-video' : ''}`} onClick={() => setPanel(panel === 'art' ? 'lyrics' : 'art')}>
+            <div className={`np-art-stage ${player.playing ? 'playing' : 'paused'} ${song.videoArt ? 'has-video' : ''}`} onClick={() => switchPanel('lyrics')}>
               {song.videoArt && player.nowOpen ? (
                 <video
                   key={song.videoArt}
@@ -120,8 +141,8 @@ export default function NowPlaying() {
             </div>
 
             <div className="np-compact-head">
-              <img src={art(song.art, 200)} alt="" onClick={() => setPanel('art')} />
-              <div className="np-ch-text" onClick={() => setPanel('art')}>
+              <img src={art(song.art, 200)} alt="" onClick={() => switchPanel(panel)} />
+              <div className="np-ch-text" onClick={() => switchPanel(panel)}>
                 <div className="np-ch-title">
                   {song.title} {song.explicit && <Explicit />}
                 </div>
@@ -203,7 +224,7 @@ export default function NowPlaying() {
             <div className="np-SwitchRow">
               <button
                 className={`np-pill ${panel === 'lyrics' ? 'on' : ''}`}
-                onClick={() => setPanel(panel === 'lyrics' ? 'art' : 'lyrics')}
+                onClick={() => switchPanel('lyrics')}
                 title="Lyrics"
               >
                 <LyricsIcon size={22} />
@@ -213,7 +234,7 @@ export default function NowPlaying() {
               </button>
               <button
                 className={`np-pill ${panel === 'queue' ? 'on' : ''}`}
-                onClick={() => setPanel(panel === 'queue' ? 'art' : 'queue')}
+                onClick={() => switchPanel('queue')}
                 title="Playing Next"
               >
                 <QueueList size={22} />
@@ -223,40 +244,42 @@ export default function NowPlaying() {
 
           {/* RIGHT: lyrics or queue */}
           <div className="np-right">
-            {panel === 'queue' ? (
-              <div className="np-queue">
-                <div className="np-q-head">
-                  <div>
-                    <div className="np-q-title">Playing Next</div>
-                    <div className="np-q-sub">{player.queue.length} songs in queue</div>
-                  </div>
-                  <div className="np-q-pills">
-                    <button className={player.shuffle ? 'on' : ''} onClick={player.toggleShuffle}><Shuffle size={16} /></button>
-                    <button className={player.repeat !== 'off' ? 'on' : ''} onClick={player.cycleRepeat}>
-                      <Repeat size={16} one={player.repeat === 'one'} />
-                    </button>
-                  </div>
-                </div>
-                <div className="np-q-list">
-                  {player.queue.map((s, i) => (
-                    <div
-                      key={s.id + '-' + i}
-                      className={`np-q-row ${i === player.index ? 'cur' : ''} ${i < player.index ? 'past' : ''}`}
-                      onClick={() => player.jumpTo(i)}
-                    >
-                      <img src={art(s.art, 120)} alt="" />
-                      <div className="np-q-meta">
-                        <div className="t">{s.title}</div>
-                        <div className="a">{s.artist}</div>
-                      </div>
-                      {i === player.index && player.playing && <Bars />}
+            <div key={`${panel}-${panelAnimKey}`} className="np-right-stage">
+              {panel === 'queue' ? (
+                <div className="np-queue">
+                  <div className="np-q-head">
+                    <div>
+                      <div className="np-q-title">Playing Next</div>
+                      <div className="np-q-sub">{player.queue.length} songs in queue</div>
                     </div>
-                  ))}
+                    <div className="np-q-pills">
+                      <button className={player.shuffle ? 'on' : ''} onClick={player.toggleShuffle}><Shuffle size={16} /></button>
+                      <button className={player.repeat !== 'off' ? 'on' : ''} onClick={player.cycleRepeat}>
+                        <Repeat size={16} one={player.repeat === 'one'} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="np-q-list">
+                    {player.queue.map((s, i) => (
+                      <div
+                        key={s.id + '-' + i}
+                        className={`np-q-row ${i === player.index ? 'cur' : ''} ${i < player.index ? 'past' : ''}`}
+                        onClick={() => player.jumpTo(i)}
+                      >
+                        <img src={art(s.art, 120)} alt="" />
+                        <div className="np-q-meta">
+                          <div className="t">{s.title}</div>
+                          <div className="a">{s.artist}</div>
+                        </div>
+                        {i === player.index && player.playing && <Bars />}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <LyricsView data={lyrics} loading={lyrLoading} song={song} visible={player.nowOpen && panel !== 'queue'} />
-            )}
+              ) : (
+                <LyricsView data={lyrics} loading={lyrLoading} song={song} visible={player.nowOpen && panel !== 'queue' && panel !== 'art'} />
+              )}
+            </div>
           </div>
         </div>
       </div>

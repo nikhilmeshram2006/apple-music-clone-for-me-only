@@ -783,14 +783,21 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   flex: 1; min-height: 0;
   display: grid; grid-template-columns: minmax(320px, 440px) 1fr;
   gap: 54px; align-items: center;
+  transition: gap 0.52s var(--spring);
 }
-.np-overlay.panel-art .np-body { grid-template-columns: minmax(340px, 500px); justify-content: center; }
-.np-overlay.panel-art .np-right { display: none; }
+.np-overlay.panel-art .np-body { grid-template-columns: minmax(340px, 500px) 0fr; gap: 0; justify-content: center; }
+.np-overlay.panel-art .np-right {
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transform: translate3d(0, 32px, 0) scale(0.95);
+}
 
 .np-left {
   display: flex; flex-direction: column; gap: 16px;
   max-width: 440px; width: 100%; margin: 0 auto;
   min-height: 0;
+  transition: transform 0.52s var(--spring), gap 0.48s var(--spring);
 }
 .np-compact-head { display: none; }
 
@@ -803,6 +810,36 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   display: flex; align-items: center; justify-content: center;
   overflow: hidden; border-radius: 16px;
   cursor: pointer;
+  transform-origin: center bottom;
+  transition:
+    transform 0.54s var(--spring),
+    max-height 0.54s var(--spring),
+    height 0.54s var(--spring),
+    margin 0.54s var(--spring),
+    opacity 0.38s var(--ease);
+}
+.np-overlay.anim-going-down .np-art-stage {
+  animation: npArtGoDown 0.54s var(--spring);
+}
+.np-overlay.anim-dip-down .np-art-stage {
+  animation: npArtDipDown 0.5s var(--spring);
+}
+.np-overlay.anim-going-up .np-art-stage {
+  animation: npArtGoUp 0.54s var(--spring);
+}
+@keyframes npArtGoDown {
+  0% { transform: translate3d(0, -18px, 0) scale(1.06); }
+  55% { transform: translate3d(0, 22px, 0) scale(0.88); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes npArtDipDown {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  45% { transform: translate3d(0, 24px, 0) scale(0.88); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes npArtGoUp {
+  0% { transform: translate3d(0, 38px, 0) scale(0.82); opacity: 0.7; }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
 }
 .np-art-stage img,
 .np-art-stage .np-video-art {
@@ -890,11 +927,36 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 .np-pill {
   width: 44px; height: 36px; border-radius: 10px;
   display: grid; place-items: center; color: rgba(255,255,255,0.65);
+  transition: transform 0.22s var(--spring), background 0.2s var(--ease), color 0.2s var(--ease);
 }
-.np-pill.on { background: rgba(255,255,255,0.22); color: #fff; }
+.np-pill:active { transform: scale(0.86); }
+.np-pill.on { background: rgba(255,255,255,0.22); color: #fff; transform: translateY(-1px); }
 
 /* ============================== APPLE MUSIC KARAOKE LYRICS */
-.np-right { height: min(76vh, 690px); min-height: 0; position: relative; }
+.np-right {
+  height: min(76vh, 690px); min-height: 0; position: relative;
+  transition:
+    opacity 0.38s var(--ease),
+    transform 0.54s var(--spring),
+    max-height 0.54s var(--spring),
+    height 0.54s var(--spring),
+    margin 0.54s var(--spring);
+}
+.np-right-stage {
+  height: 100%;
+  width: 100%;
+  animation: npPanelSlideIn 0.48s var(--spring);
+}
+@keyframes npPanelSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
 
 .lyrics-wrap {
   height: 100%; overflow: hidden; position: relative;
@@ -1148,19 +1210,90 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   .site-footer { padding: 26px 16px 190px; }
 
   .np-sheet { padding: 8px 24px 24px; justify-content: space-between; }
-  .np-body { grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
-  .np-left { gap: 18px; justify-content: center; height: 100%; max-width: 390px; }
+  .np-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0;
+    align-items: stretch;
+  }
+  .np-overlay.panel-art .np-body {
+    justify-content: center;
+  }
+  .np-right {
+    order: 1;
+    height: 0;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translate3d(0, -24px, 0) scale(0.95);
+  }
+  .np-overlay.panel-lyrics .np-right,
+  .np-overlay.panel-queue .np-right {
+    height: 46vh;
+    max-height: 46vh;
+    margin-bottom: 10px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  .np-left {
+    order: 2;
+    gap: 16px;
+    justify-content: center;
+    height: auto;
+    max-width: 390px;
+  }
+  .np-overlay.panel-lyrics .np-left,
+  .np-overlay.panel-queue .np-left {
+    gap: 8px;
+  }
   .np-art-stage {
-    width: min(82vw, 330px);
-    height: min(82vw, 330px);
-    max-height: 40vh;
+    width: min(84vw, 345px);
+    height: min(84vw, 345px);
+    max-height: 43vh;
     aspect-ratio: 1;
     margin: 0 auto 10px;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: center bottom;
   }
   .np-overlay.panel-art .np-art-stage {
     width: min(84vw, 345px);
     height: min(84vw, 345px);
     max-height: 43vh;
+  }
+  .np-overlay.panel-lyrics .np-art-stage,
+  .np-overlay.panel-queue .np-art-stage {
+    max-height: 0;
+    height: 0;
+    margin: 0 auto 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(0, 145px, 0) scale(0.18);
+    animation: none;
+  }
+  .np-meta-row {
+    max-height: 76px;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    transition:
+      max-height 0.48s var(--spring),
+      opacity 0.32s var(--ease),
+      transform 0.48s var(--spring),
+      padding 0.48s var(--spring),
+      margin 0.48s var(--spring);
+  }
+  .np-overlay.panel-lyrics .np-meta-row,
+  .np-overlay.panel-queue .np-meta-row {
+    max-height: 0;
+    padding-top: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translate3d(0, 56px, 0) scale(0.9);
   }
   .np-meta-actions { gap: 10px; }
   .np-circle {
@@ -1179,22 +1312,52 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
     justify-content: space-between;
     padding: 4px 28px 0;
   }
-  .np-overlay.panel-lyrics .np-art-stage,
-  .np-overlay.panel-lyrics .np-meta-row,
-  .np-overlay.panel-queue .np-art-stage,
-  .np-overlay.panel-queue .np-meta-row { display: none; }
+  .np-compact-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translate3d(0, -32px, 0) scale(0.88);
+    transition:
+      max-height 0.52s var(--spring),
+      opacity 0.36s var(--ease),
+      transform 0.52s var(--spring),
+      margin 0.52s var(--spring);
+  }
   .np-overlay.panel-lyrics .np-compact-head,
   .np-overlay.panel-queue .np-compact-head {
-    display: flex; align-items: center; gap: 12px;
+    max-height: 62px;
+    margin-bottom: 2px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(0, 0, 0) scale(1);
   }
-  .np-compact-head img { width: 48px; height: 48px; border-radius: 9px; cursor: pointer; }
+  .np-compact-head img {
+    width: 48px; height: 48px; border-radius: 9px; cursor: pointer;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+    transition: transform 0.48s var(--spring);
+  }
+  .np-overlay.anim-going-down .np-compact-head img {
+    animation: npCompactArtLand 0.54s var(--spring);
+  }
+  .np-overlay.anim-dip-down .np-compact-head img {
+    animation: npCompactArtDip 0.46s var(--spring);
+  }
+  @keyframes npCompactArtLand {
+    0% { transform: translate3d(0, -42px, 0) scale(1.75); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+  }
+  @keyframes npCompactArtDip {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    45% { transform: translate3d(0, 10px, 0) scale(0.84); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+  }
   .np-ch-text { flex: 1; min-width: 0; cursor: pointer; }
   .np-ch-title { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-ch-sub { font-size: 13px; color: rgba(255,255,255,0.7); }
-  .np-overlay.panel-lyrics .np-left,
-  .np-overlay.panel-queue .np-left { order: 2; gap: 8px; }
-  .np-overlay.panel-lyrics .np-right,
-  .np-overlay.panel-queue .np-right { order: 1; height: 46vh; }
   .top-search-bar { padding: 10px 12px; gap: 8px; }
   .top-bar-spacer, .top-logo-btn span { display: none; }
 }
