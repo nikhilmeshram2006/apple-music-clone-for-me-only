@@ -1152,6 +1152,8 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   padding: 36px 34px 190px;
   border-top: 1px solid var(--border);
   color: var(--sub); font-size: 13px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
 }
 .sf-grid {
   display: grid; grid-template-columns: 2fr repeat(3, 1fr);

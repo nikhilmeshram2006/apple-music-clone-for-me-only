@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { art } from '../api';
+import { art, thumbImg } from '../api';
 import { fmt, useActiveSong, useLibrary, useLiked, usePlayerActions, useRouter } from '../store';
 import { Check, Explicit, Heart, Lyrics, More, Pause, Play, Plus, Queue, User } from './Icons';
 
@@ -198,7 +198,19 @@ export const ArtistBubble = memo(function ArtistBubble({ artist, size = 'md' }) 
   return (
     <div className={`artist-bubble ${size}`} onClick={() => { window.location.hash = `/artist/${artist.id}`; }}>
       <div className="ab-img" style={{ background: artist.colors?.[0] || '#2c2c2e' }}>
-        {artist.image ? <img src={artist.image} alt={artist.name} loading="lazy" decoding="async" /> : <span>{initials}</span>}
+        {artist.image ? (
+          <img
+            src={thumbImg(artist.image)}
+            alt={artist.name}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              if (e.currentTarget.src !== artist.image) e.currentTarget.src = artist.image;
+            }}
+          />
+        ) : (
+          <span>{initials}</span>
+        )}
       </div>
       <div className="ab-name">{artist.name}</div>
       {artist.genre && <div className="ab-sub">{artist.genre}</div>}

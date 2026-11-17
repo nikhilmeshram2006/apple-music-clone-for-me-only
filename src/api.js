@@ -3,7 +3,22 @@
 //  - Live Search (iTunes + /api/resolve + LRCLIB): any song searched live is upgraded on-the-fly to full-length 320 kbps
 //    audio AND its LRCLIB synced lyrics are converted in-browser into word-by-word karaoke timing!
 
-export const art = (tpl, size = 600) => (tpl ? tpl.replace(/\{s\}/g, size) : '');
+export const art = (tpl, size = 600) => {
+  if (!tpl) return '';
+  if (tpl.includes('{s}')) return tpl.replace(/\{s\}/g, size);
+  // JioSaavn covers come fixed at 500x500 – use the 150px rendition for small thumbnails
+  if (size <= 160 && tpl.includes('saavncdn.com')) return tpl.replace(/-500x500\.(jpg|png|webp)$/, '-150x150.$1');
+  return tpl;
+};
+
+// Downsized artist portrait for small bubbles (full-res is still used on the artist page hero)
+export const thumbImg = (url) => {
+  if (!url) return url;
+  return url
+    .replace(/\/1000x1000-(\d{6}-\d+-0-0\.jpg)$/, '/250x250-$1') // Deezer
+    .replace(/\/(\d{3,4})x\1bb\.jpg$/, '/300x300bb.jpg') // Apple
+    .replace(/_500x500\.jpg$/, '_150x150.jpg'); // JioSaavn
+};
 
 const toTpl = (u) => (u ? u.replace(/\/\d+x\d+bb\.(jpg|png|webp)$/, '/{s}x{s}bb.jpg') : '');
 

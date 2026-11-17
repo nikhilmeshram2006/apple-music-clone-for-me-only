@@ -58,6 +58,28 @@ const blobs = [
   { x: 0.5, y: 0.5, s: 0.55, r: 0.16, ox: 0.12, oy: 0.12, f: 0.15 },
 ];
 
+// One shared rAF clock drives every visible FluidBackground instead of one loop per instance.
+const tickers = new Set();
+let sharedRaf = 0;
+function sharedLoop(now) {
+  sharedRaf = 0;
+  tickers.forEach((fn) => {
+    if (fn(now) === false) tickers.delete(fn);
+  });
+  if (tickers.size) sharedRaf = requestAnimationFrame(sharedLoop);
+}
+function addTicker(fn) {
+  tickers.add(fn);
+  if (!sharedRaf) sharedRaf = requestAnimationFrame(sharedLoop);
+}
+function removeTicker(fn) {
+  tickers.delete(fn);
+  if (!tickers.size && sharedRaf) {
+    cancelAnimationFrame(sharedRaf);
+    sharedRaf = 0;
+  }
+}
+
 function scene(ctx, img, t) {
   ctx.globalAlpha = 1;
   ctx.drawImage(img, -W * 0.1, -H * 0.1, W * 1.2, H * 1.2);
@@ -114,7 +136,7 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
     off.width = W;
     off.height = H;
     const octx = off.getContext('2d', { alpha: false });
-    let raf = 0;
+    let running = false;
     let t = Math.random() * 100;
     let last = performance.now();
     let acc = 0;
@@ -142,25 +164,26 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
 
     const loop = (now) => {
       if (!shouldRun()) {
-        raf = 0;
-        return;
+        running = false;
+        return false;
       }
-      raf = requestAnimationFrame(loop);
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       acc += dt;
       const s = state.current;
       const interval = s.paused ? 1 / 12 : 1 / 22;
-      if (acc < interval) return;
+      if (acc < interval) return true;
       t += acc * (s.paused ? 0.22 : 1) * s.speed;
       acc = 0;
       renderFrame(now);
+      return true;
     };
 
     const startLoop = () => {
-      if (!raf && shouldRun()) {
+      if (!running && shouldRun()) {
+        running = true;
         last = performance.now();
-        raf = requestAnimationFrame(loop);
+        addTicker(loop);
       }
     };
 
@@ -188,7 +211,8 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
     startLoop();
 
     return () => {
-      if (raf) cancelAnimationFrame(raf);
+      removeTicker(loop);
+      running = false;
       io?.disconnect();
       document.removeEventListener('visibilitychange', onVis);
     };

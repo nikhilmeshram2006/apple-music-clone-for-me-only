@@ -191,6 +191,12 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'docs',
+    rollupOptions: {
+      output: {
+        // React rarely changes → separate long-cacheable vendor chunk for faster repeat visits
+        manualChunks: { vendor: ['react', 'react-dom'] },
+      },
+    },
   },
   plugins: [react(), fullAudioMiddleware()],
   server: { port: 5173, open: false, allowedHosts: true },

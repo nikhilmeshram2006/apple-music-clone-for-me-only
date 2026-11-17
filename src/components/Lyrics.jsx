@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { audio, useLibrary, usePlayerActions } from '../store';
 
 // precise playback clock (timeupdate only fires ~4x/s; we extrapolate between reads)
@@ -21,7 +21,12 @@ const isCJK = (s) => /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(s);
 const isLatinWord = (s) => /^[\p{L}\p{N}'’,.!?-]+\s*$/u.test(s) && !isCJK(s);
 const getLetters = (el) => el._ll || (el._ll = [...el.querySelectorAll('.ll')]);
 
-function Word({ w, glow, refFn }) {
+// Memoized: word spans never re-render on scroll / line changes (fill & glow are driven imperatively)
+const Word = memo(function Word({ w, glow, store, k }) {
+  const refFn = (el) => {
+    if (el) store.current[k] = el;
+    else if (store.current[k]) delete store.current[k];
+  };
   const trail = w.w.match(/\s*$/)[0];
   const core = w.w.trimEnd();
   if (glow) {
@@ -47,7 +52,7 @@ function Word({ w, glow, refFn }) {
       {trail}
     </>
   );
-}
+});
 
 export default function LyricsView({ data, loading, song, visible = true }) {
   const { seek } = usePlayerActions();
@@ -87,6 +92,7 @@ export default function LyricsView({ data, loading, song, visible = true }) {
     activeRef.current = -1;
     setScrollY(0);
     lastFill.current.clear();
+    Object.values(wordEls.current).forEach((el) => el && delete el._ll);
   }, [data]);
 
   // --------------------------------------------------- animation loop (only runs when visible)
@@ -305,7 +311,7 @@ export default function LyricsView({ data, loading, song, visible = true }) {
             onClick={() => seek(l.t - offset + 0.02)}
           >
             {l.words.map((w, wi) => (
-              <Word key={wi} w={w} glow={glowSet.has(`${i}-${wi}`)} refFn={(el) => (wordEls.current[`${i}-${wi}`] = el)} />
+              <Word key={wi} w={w} glow={glowSet.has(`${i}-${wi}`)} store={wordEls} k={`${i}-${wi}`} />
             ))}
           </div>
         );
