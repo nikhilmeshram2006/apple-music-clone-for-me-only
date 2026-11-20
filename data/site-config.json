@@ -1,0 +1,20 @@
+{
+  "siteName": "apple music",
+  "tagline": "Lossless · Word-Synced Lyrics · Animated Motion",
+  "footerDesc": "Personal full-length 320 kbps streaming experience with word-by-word synchronized karaoke lyrics and animated motion artwork.",
+  "logoUrl": "logo.jpg",
+  "accentColor": "#fa2d48",
+  "accentColor2": "#ff375f",
+  "bgColor": "#000000",
+  "fluidIntensity": 0.75,
+  "enableFluidBg": true,
+  "enableMotionArt": true,
+  "enableLyrics": true,
+  "enableSplash": true,
+  "announcement": "",
+  "maintenanceMode": false,
+  "maintenanceMessage": "We are updating the music catalog. Please check back shortly.",
+  "defaultVolume": 0.9,
+  "defaultLyricSize": 1,
+  "hiddenGenres": []
+}
