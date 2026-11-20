@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { art, loadLyrics } from '../api';
+import { isSafeExternalUrl } from '../adminStore';
 import { fmt, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
 import {
@@ -232,7 +233,13 @@ export default function NowPlaying() {
               >
                 <LyricsIcon size={22} />
               </button>
-              <button className="np-pill" onClick={() => song.appleUrl && window.open(song.appleUrl, '_blank')} title="Cast / AirPlay">
+              <button
+                className="np-pill"
+                onClick={() =>
+                  isSafeExternalUrl(song.appleUrl) && window.open(song.appleUrl, '_blank', 'noopener,noreferrer')
+                }
+                title="Cast / AirPlay"
+              >
                 <CastIcon size={21} />
               </button>
               <button

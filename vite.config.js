@@ -4,18 +4,51 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+function isAllowedHttpsHost(rawUrl, allowedHost) {
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.protocol === 'https:' && parsed.hostname === allowedHost;
+  } catch {
+    return false;
+  }
+}
+
+function createRateLimiter(maxReq, windowMs) {
+  const hits = new Map();
+  return (ip) => {
+    const now = Date.now();
+    const list = (hits.get(ip) || []).filter((t) => now - t < windowMs);
+    if (list.length >= maxReq) {
+      hits.set(ip, list);
+      return false;
+    }
+    list.push(now);
+    hits.set(ip, list);
+    return true;
+  };
+}
+
 function fullAudioMiddleware() {
   const cache = new Map();
+  const apiLimiter = createRateLimiter(60, 60_000);
+  const adminLimiter = createRateLimiter(10, 60_000);
   return {
     name: 'full-audio-resolver',
     configureServer(server) {
       // 1) Resolve full-length stream + animated cover for a single song
       server.middlewares.use('/api/resolve', async (req, res) => {
+        const ip = req.socket?.remoteAddress || 'local';
+        if (!apiLimiter(ip)) {
+          res.statusCode = 429;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Too many requests' }));
+          return;
+        }
         try {
           const u = new URL(req.url, 'http://localhost');
-          const artist = u.searchParams.get('artist') || '';
-          const title = u.searchParams.get('title') || '';
-          const albumUrl = u.searchParams.get('albumUrl') || '';
+          const artist = (u.searchParams.get('artist') || '').slice(0, 120).trim();
+          const title = (u.searchParams.get('title') || '').slice(0, 120).trim();
+          const albumUrl = (u.searchParams.get('albumUrl') || '').slice(0, 300).trim();
           const key = `res:${artist}|${title}|${albumUrl}`.toLowerCase();
           if (cache.has(key)) {
             res.setHeader('Content-Type', 'application/json');
@@ -27,19 +60,22 @@ function fullAudioMiddleware() {
           let duration = null;
           let videoArt = null;
 
-          if (albumUrl && albumUrl.includes('music.apple.com')) {
+          // Strict SSRF protection: only fetch exact HTTPS music.apple.com & mvod.itunes.apple.com hosts
+          const cleanAlbumUrl = albumUrl.split('?')[0];
+          if (cleanAlbumUrl && isAllowedHttpsHost(cleanAlbumUrl, 'music.apple.com')) {
             try {
-              const page = await fetch(albumUrl.split('?')[0], {
+              const page = await fetch(cleanAlbumUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0' },
+                redirect: 'error',
               }).then((r) => r.text());
               const m3u8 = page.match(/https:\/\/mvod\.itunes\.apple\.com[^\s"'<>\\]+\.m3u8/)?.[0];
-              if (m3u8) {
-                const master = await fetch(m3u8).then((r) => r.text());
+              if (m3u8 && isAllowedHttpsHost(m3u8, 'mvod.itunes.apple.com')) {
+                const master = await fetch(m3u8, { redirect: 'error' }).then((r) => r.text());
                 const sub =
                   master.match(/CODECS="avc1[^"]*"[^\n]*\n(https:\/\/mvod\.itunes\.apple\.com[^\s]+\.m3u8)/)?.[1] ||
                   master.match(/https:\/\/mvod\.itunes\.apple\.com[^\s]+_(?:768x768|486x486|360x360)\.m3u8/)?.[0];
-                if (sub) {
-                  const subTxt = await fetch(sub).then((r) => r.text());
+                if (sub && isAllowedHttpsHost(sub, 'mvod.itunes.apple.com')) {
+                  const subTxt = await fetch(sub, { redirect: 'error' }).then((r) => r.text());
                   const mp4 = subTxt.match(/URI="([^"]+\.mp4)"/)?.[1];
                   if (mp4) videoArt = `${sub.slice(0, sub.lastIndexOf('/'))}/${mp4}`;
                 }
@@ -88,17 +124,25 @@ for it in data.get("results", []):
           cache.set(key, out);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(out));
-        } catch (e) {
+        } catch {
           res.statusCode = 500;
-          res.end(JSON.stringify({ error: String(e) }));
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Internal server error' }));
         }
       });
 
       // 2) Full Search endpoint (/api/search?q=...) returning decrypted 320kbps songs + artists + albums
       server.middlewares.use('/api/search', async (req, res) => {
+        const ip = req.socket?.remoteAddress || 'local';
+        if (!apiLimiter(ip)) {
+          res.statusCode = 429;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ songs: [], artists: [], albums: [], error: 'Too many requests' }));
+          return;
+        }
         try {
           const u = new URL(req.url, 'http://localhost');
-          const q = (u.searchParams.get('q') || '').trim();
+          const q = (u.searchParams.get('q') || '').slice(0, 120).trim();
           if (!q) {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ songs: [], artists: [], albums: [] }));
@@ -180,37 +224,62 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
           cache.set(key, out);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(out));
-        } catch (e) {
+        } catch {
           res.statusCode = 500;
-          res.end(JSON.stringify({ songs: [], artists: [], albums: [], error: String(e) }));
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ songs: [], artists: [], albums: [], error: 'Internal server error' }));
         }
       });
 
       // 3) Local dev-only Admin save endpoint (never bundled or active in production)
       server.middlewares.use('/__admin/save', (req, res) => {
+        const ip = req.socket?.remoteAddress || 'local';
+        if (!adminLimiter(ip)) {
+          res.statusCode = 429;
+          res.end('Too Many Requests');
+          return;
+        }
         if (req.method !== 'POST') {
           res.statusCode = 405;
           res.end('Method Not Allowed');
           return;
         }
+        // CSRF / Origin protection: only allow same-origin localhost requests
+        const origin = req.headers.origin || '';
+        const host = req.headers.host || '';
+        if (origin && !origin.startsWith(`http://${host}`) && !origin.startsWith(`https://${host}`)) {
+          res.statusCode = 403;
+          res.end('Forbidden Origin');
+          return;
+        }
         let body = '';
+        let bytes = 0;
+        const MAX_BODY = 5 * 1024 * 1024; // 5 MB limit
         req.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > MAX_BODY) {
+            res.statusCode = 413;
+            res.end('Payload Too Large');
+            req.destroy();
+            return;
+          }
           body += chunk;
         });
         req.on('end', () => {
+          if (bytes > MAX_BODY) return;
           try {
             const payload = JSON.parse(body || '{}');
             const dataDir = path.resolve(process.cwd(), 'public', 'data');
             const lyrDir = path.join(dataDir, 'lyrics');
             fs.mkdirSync(lyrDir, { recursive: true });
-            if (payload.catalog) {
+            if (payload.catalog && typeof payload.catalog === 'object') {
               fs.writeFileSync(
                 path.join(dataDir, 'catalog.json'),
                 JSON.stringify(payload.catalog),
                 'utf-8'
               );
             }
-            if (payload.siteConfig) {
+            if (payload.siteConfig && typeof payload.siteConfig === 'object') {
               fs.writeFileSync(
                 path.join(dataDir, 'site-config.json'),
                 JSON.stringify(payload.siteConfig, null, 2),
@@ -219,16 +288,17 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
             }
             if (payload.lyricsOverrides && typeof payload.lyricsOverrides === 'object') {
               Object.entries(payload.lyricsOverrides).forEach(([id, lyr]) => {
-                if (/^[a-zA-Z0-9_-]+$/.test(id) && lyr) {
+                if (/^[a-zA-Z0-9_-]{1,64}$/.test(id) && lyr && typeof lyr === 'object') {
                   fs.writeFileSync(path.join(lyrDir, `${id}.json`), JSON.stringify(lyr), 'utf-8');
                 }
               });
             }
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ ok: true }));
-          } catch (e) {
+          } catch {
             res.statusCode = 500;
-            res.end(JSON.stringify({ ok: false, error: String(e) }));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: false, error: 'Failed to save data' }));
           }
         });
       });
@@ -240,6 +310,7 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'docs',
+    sourcemap: false,
     rollupOptions: {
       output: {
         // React rarely changes → separate long-cacheable vendor chunk for faster repeat visits
@@ -248,5 +319,5 @@ export default defineConfig({
     },
   },
   plugins: [react(), fullAudioMiddleware()],
-  server: { port: 5173, open: false, allowedHosts: true },
+  server: { port: 5173, open: false, host: 'localhost' },
 });

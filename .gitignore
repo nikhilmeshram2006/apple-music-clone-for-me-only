@@ -1,7 +1,12 @@
 node_modules
 dist
 scripts/.cache
+scripts/.tmp_audio
 __pycache__
 *.pyc
 .DS_Store
 *.log
+.env
+.env.*
+*.pem
+*.key

@@ -1,17 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { art, buildWordSyncedFromLrc } from '../api';
 import {
+  clearSecurityLogs,
   DEFAULT_SITE_CONFIG,
   downloadJSON,
   getLyricsOverride,
+  getSecurityLogs,
   isAdminAuthenticated,
+  isSafeUrl,
   loadCatalogPatch,
   loadLyricsPatch,
+  logSecurityEvent,
   resetAllAdminOverrides,
+  sanitizeText,
   saveLyricsOverride,
   setAdminAuthenticated,
   setAdminPasscode,
   stripInternalCatalogFields,
+  touchAdminSession,
+  validateBackupPayload,
   verifyAdminCredentials,
   verifyAdminPasscode,
 } from '../adminStore';
@@ -74,6 +81,20 @@ export default function AdminPage() {
   const [curPass, setCurPass] = useState('');
   const [nextPass, setNextPass] = useState('');
   const [savingDisk, setSavingDisk] = useState(false);
+  const [secLogs, setSecLogs] = useState(() => getSecurityLogs());
+
+  // Enforce automatic 30-minute session expiry while open
+  useEffect(() => {
+    if (!authed) return;
+    const id = setInterval(() => {
+      if (!isAdminAuthenticated()) {
+        setAuthed(false);
+        setSecLogs(getSecurityLogs());
+        lib.notify('Endministrator session expired — please sign in again', 'error');
+      }
+    }, 15000);
+    return () => clearInterval(id);
+  }, [authed, lib]);
 
   const allSongs = useMemo(() => Object.values(catalog?.songs || {}), [catalog]);
   const allArtists = useMemo(
@@ -161,20 +182,33 @@ export default function AdminPage() {
 
   const handleSaveEditedSong = (e) => {
     e.preventDefault();
-    if (!editingSong?.title?.trim() || !editingSong?.artist?.trim()) {
+    touchAdminSession();
+    const title = sanitizeText(editingSong?.title, 160);
+    const artist = sanitizeText(editingSong?.artist, 160);
+    if (!title || !artist) {
       lib.notify('Title and Artist are required', 'error');
+      return;
+    }
+    if (!isSafeUrl(editingSong.audio) || !isSafeUrl(editingSong.art) || !isSafeUrl(editingSong.videoArt)) {
+      lib.notify('Invalid or unsafe URL detected (only https:// or safe data/... paths allowed)', 'error');
       return;
     }
     const updated = {
       ...editingSong,
-      duration: Number(editingSong.duration) || 180,
-      offset: Number(editingSong.offset) || 0,
+      title,
+      artist,
+      album: sanitizeText(editingSong.album, 160),
+      aliases: sanitizeText(editingSong.aliases, 240),
+      duration: Math.max(1, Math.min(7200, Number(editingSong.duration) || 180)),
+      offset: Math.max(-60, Math.min(60, Number(editingSong.offset) || 0)),
       videoArt: editingSong.videoArt?.trim() || null,
     };
     if (editingLrc.trim()) {
       updated.lyrics = saveLyricsFromText(updated.id, editingLrc, updated.duration) || updated.lyrics;
     }
     admin.upsertSong(updated, false);
+    logSecurityEvent('SONG_EDITED', `${updated.title} (${updated.id})`);
+    setSecLogs(getSecurityLogs());
     setEditingSong(null);
     setEditingLrc('');
     lib.notify(`Updated “${updated.title}”`, 'success');
@@ -182,7 +216,10 @@ export default function AdminPage() {
 
   const handleAddSong = (e) => {
     e.preventDefault();
-    if (!newSong.title.trim() || !newSong.artist.trim()) {
+    touchAdminSession();
+    const title = sanitizeText(newSong.title, 160);
+    const artist = sanitizeText(newSong.artist, 160);
+    if (!title || !artist) {
       lib.notify('Song Title and Artist are required', 'error');
       return;
     }
@@ -190,26 +227,37 @@ export default function AdminPage() {
       lib.notify('Provide an Audio URL (e.g. data/audio/song.m4a or https://...)', 'error');
       return;
     }
-    const id = newSong.id.trim() || `custom_${Date.now()}`;
+    if (!isSafeUrl(newSong.audio) || !isSafeUrl(newSong.preview) || !isSafeUrl(newSong.art) || !isSafeUrl(newSong.videoArt)) {
+      lib.notify('Invalid or unsafe URL detected (only https:// or safe data/... paths allowed)', 'error');
+      return;
+    }
+    const rawId = sanitizeText(newSong.id, 64).replace(/[^a-zA-Z0-9_-]/g, '');
+    const id = rawId || `custom_${Date.now()}`;
     const artistId =
-      newSong.artistId.trim() ||
-      `art_${newSong.artist.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+      sanitizeText(newSong.artistId, 64).replace(/[^a-zA-Z0-9_-]/g, '') ||
+      `art_${artist.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
     const songObj = {
       ...newSong,
       id,
+      title,
+      artist,
       artistId,
-      albumId: newSong.albumId.trim() || `alb_${id}`,
+      album: sanitizeText(newSong.album, 160),
+      albumId: sanitizeText(newSong.albumId, 64).replace(/[^a-zA-Z0-9_-]/g, '') || `alb_${id}`,
+      aliases: sanitizeText(newSong.aliases, 240),
       audio: newSong.audio.trim() || newSong.preview.trim(),
       preview: newSong.preview.trim() || newSong.audio.trim(),
       videoArt: newSong.videoArt.trim() || null,
-      duration: Number(newSong.duration) || 200,
-      offset: Number(newSong.offset) || 0,
+      duration: Math.max(1, Math.min(7200, Number(newSong.duration) || 200)),
+      offset: Math.max(-60, Math.min(60, Number(newSong.offset) || 0)),
       colors: ['#fa2d48', '#5e5ce6', '#1c1c1e'],
     };
     if (newLrc.trim()) {
       songObj.lyrics = saveLyricsFromText(id, newLrc, songObj.duration) || songObj.lyrics;
     }
     admin.upsertSong(songObj, true);
+    logSecurityEvent('SONG_ADDED', `${songObj.title} (${songObj.id})`);
+    setSecLogs(getSecurityLogs());
     setNewSong({ ...EMPTY_SONG });
     setNewLrc('');
     lib.notify(`Added “${songObj.title}” to catalog`, 'success');
@@ -287,15 +335,32 @@ export default function AdminPage() {
   };
 
   const handleImportBackup = (e) => {
+    touchAdminSession();
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      lib.notify('Only .json backup files are allowed', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      lib.notify('Backup file exceeds 5 MB security limit', 'error');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result || '{}'));
-        if (parsed.siteConfig) admin.updateSiteConfig(parsed.siteConfig);
-        if (parsed.catalogPatch) admin.replacePatch(parsed.catalogPatch);
-        lib.notify('Imported admin backup successfully', 'success');
+        const validated = validateBackupPayload(parsed);
+        if (!validated) {
+          lib.notify('Backup file failed schema/security validation', 'error');
+          return;
+        }
+        if (validated.siteConfig) admin.updateSiteConfig(validated.siteConfig);
+        if (validated.catalogPatch) admin.replacePatch(validated.catalogPatch);
+        logSecurityEvent('BACKUP_IMPORTED', file.name);
+        setSecLogs(getSecurityLogs());
+        lib.notify('Imported validated admin backup successfully', 'success');
       } catch {
         lib.notify('Invalid JSON backup file', 'error');
       }
@@ -305,18 +370,20 @@ export default function AdminPage() {
 
   const handleChangePasscode = async (e) => {
     e.preventDefault();
+    touchAdminSession();
     if (!(await verifyAdminPasscode(curPass))) {
       lib.notify('Current passcode is incorrect', 'error');
       return;
     }
-    if (nextPass.trim().length < 4) {
-      lib.notify('New passcode must be at least 4 characters', 'error');
+    if (nextPass.trim().length < 8) {
+      lib.notify('New password must be at least 8 characters', 'error');
       return;
     }
     await setAdminPasscode(nextPass.trim());
     setCurPass('');
     setNextPass('');
-    lib.notify('Admin passcode updated (stored as SHA-256 hash)', 'success');
+    setSecLogs(getSecurityLogs());
+    lib.notify('Password updated (PBKDF2-SHA256, 210k iterations + random salt)', 'success');
   };
 
   // ------------------------------------------------------------------ LOCKED SCREEN
@@ -816,6 +883,39 @@ export default function AdminPage() {
               <button type="submit" className="pill-btn primary">Update Passcode</button>
             </div>
           </form>
+
+          <h2 style={{ marginTop: 28 }}>Security Activity Monitor ({secLogs.length})</h2>
+          <div className="admin-table-wrap" style={{ maxHeight: 220, marginBottom: 12 }}>
+            {secLogs.length === 0 ? (
+              <div className="admin-note">No security events recorded yet.</div>
+            ) : (
+              secLogs.map((l, idx) => (
+                <div key={idx} className="admin-song-row">
+                  <div className="asr-info">
+                    <div className="asr-title">
+                      <code>{l.event}</code>
+                    </div>
+                    <div className="asr-sub">
+                      {l.ts.replace('T', ' ').slice(0, 19)} UTC · {l.detail}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {secLogs.length > 0 && (
+            <button
+              type="button"
+              className="pill-btn sm"
+              onClick={() => {
+                clearSecurityLogs();
+                setSecLogs([]);
+                lib.notify('Cleared security activity log', 'success');
+              }}
+            >
+              Clear Security Log
+            </button>
+          )}
 
           <h2 style={{ marginTop: 28 }}>Danger Zone</h2>
           <button
