@@ -1,5 +1,14 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { art, setCatalogRef } from './api';
+import {
+  ADMIN_ROUTE,
+  applyCatalogPatch,
+  DEFAULT_SITE_CONFIG,
+  loadCatalogPatch,
+  loadSiteConfigOverride,
+  saveCatalogPatch,
+  saveSiteConfigOverride,
+} from './adminStore';
 import BottomDock, { TopBar } from './components/BottomDock';
 import FluidBackground from './components/FluidBackground';
 import { Check, Close, Home, Library, Search, User } from './components/Icons';
@@ -7,11 +16,29 @@ import NowPlaying from './components/NowPlaying';
 import ArtistPage from './pages/Artist';
 import HomePage from './pages/Home';
 import { AlbumPage, GenrePage, LibraryPage, NotFoundPage, PlaylistPage, ProfilePage, SearchPage } from './pages/OtherPages';
-import { CatalogProvider, LibraryProvider, PlayerProvider, RouterProvider, useCatalog, usePlayer, useRouter, useToast } from './store';
+import {
+  CatalogProvider,
+  LibraryProvider,
+  PlayerProvider,
+  RouterProvider,
+  useCatalog,
+  usePlayer,
+  useRouter,
+  useSiteConfig,
+  useToast,
+} from './store';
+
+const AdminPage = lazy(() => import('./pages/Admin'));
 
 function Sidebar({ mobileOpen, onCloseMobile }) {
   const { path, navigate } = useRouter();
   const catalog = useCatalog();
+  const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
+  const hiddenSet = useMemo(() => new Set(siteConfig.hiddenGenres || []), [siteConfig.hiddenGenres]);
+  const visibleGenres = useMemo(
+    () => (catalog.genres || []).filter((g) => !hiddenSet.has(g.id)),
+    [catalog.genres, hiddenSet]
+  );
   const nav = (p) => {
     navigate(p);
     onCloseMobile?.();
@@ -23,8 +50,8 @@ function Sidebar({ mobileOpen, onCloseMobile }) {
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sb-top-row">
           <div className="sb-brand" onClick={() => nav('/')}>
-            <img className="sb-logo-img" src="logo.jpg" alt="Apple Music" />
-            <span>apple music</span>
+            <img className="sb-logo-img" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+            <span>{siteConfig.siteName}</span>
           </div>
           <button className="sb-close-mobile icon-btn" onClick={onCloseMobile} aria-label="Close menu">
             <Close size={18} />
@@ -40,7 +67,7 @@ function Sidebar({ mobileOpen, onCloseMobile }) {
 
         <div className="sb-group">
           <div className="sb-head">Genres</div>
-          {catalog.genres.map((g) => (
+          {visibleGenres.map((g) => (
             <button
               key={g.id}
               className={path === `/genre/${g.id}` ? 'on' : ''}
@@ -59,6 +86,12 @@ function Sidebar({ mobileOpen, onCloseMobile }) {
 function SiteFooter() {
   const { navigate } = useRouter();
   const catalog = useCatalog();
+  const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
+  const hiddenSet = useMemo(() => new Set(siteConfig.hiddenGenres || []), [siteConfig.hiddenGenres]);
+  const visibleGenres = useMemo(
+    () => (catalog.genres || []).filter((g) => !hiddenSet.has(g.id)),
+    [catalog.genres, hiddenSet]
+  );
   const year = new Date().getFullYear();
 
   return (
@@ -66,12 +99,10 @@ function SiteFooter() {
       <div className="sf-grid">
         <div className="sf-brand-col">
           <button className="top-logo-btn" onClick={() => navigate('/')}>
-            <img src="logo.jpg" alt="Apple Music" />
-            <span>apple music</span>
+            <img src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+            <span>{siteConfig.siteName}</span>
           </button>
-          <p className="sf-desc">
-            Personal full-length 320 kbps streaming experience with word-by-word synchronized karaoke lyrics and animated motion artwork.
-          </p>
+          <p className="sf-desc">{siteConfig.footerDesc}</p>
         </div>
         <div className="sf-col">
           <div className="sf-head">Navigation</div>
@@ -82,19 +113,19 @@ function SiteFooter() {
         </div>
         <div className="sf-col">
           <div className="sf-head">Top Genres</div>
-          {catalog.genres.slice(0, 5).map((g) => (
+          {visibleGenres.slice(0, 5).map((g) => (
             <button key={g.id} onClick={() => navigate(`/genre/${g.id}`)}>{g.name}</button>
           ))}
         </div>
         <div className="sf-col">
           <div className="sf-head">More Genres</div>
-          {catalog.genres.slice(5).map((g) => (
+          {visibleGenres.slice(5).map((g) => (
             <button key={g.id} onClick={() => navigate(`/genre/${g.id}`)}>{g.name}</button>
           ))}
         </div>
       </div>
       <div className="sf-bottom">
-        <span>Copyright © {year} Apple Music Personal Edition. All rights reserved.</span>
+        <span>Copyright © {year} {siteConfig.siteName} Personal Edition. All rights reserved.</span>
         <div className="sf-links">
           <button onClick={() => navigate('/')}>Home</button>
           <span>·</span>
@@ -121,27 +152,30 @@ function ToastBanner() {
 function AmbientLayer({ path }) {
   const catalog = useCatalog();
   const player = usePlayer();
+  const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
 
   useEffect(() => {
     if (player.current && player.playing) return;
-    let title = 'Apple Music — Stream Full-Length Songs & Word-Synced Lyrics';
-    if (path === '/search') title = 'Browse & Search — Apple Music';
-    else if (path.startsWith('/search/')) title = `Search “${decodeURIComponent(path.slice(8))}” — Apple Music`;
-    else if (path === '/library') title = 'Your Library — Apple Music';
-    else if (path === '/profile') title = 'Listener Profile & Replay — Apple Music';
+    const brand = siteConfig.siteName || 'Apple Music';
+    let title = `${brand} — Stream Full-Length Songs & Word-Synced Lyrics`;
+    if (path === ADMIN_ROUTE) title = `Endministrator — ${brand}`;
+    else if (path === '/search') title = `Browse & Search — ${brand}`;
+    else if (path.startsWith('/search/')) title = `Search “${decodeURIComponent(path.slice(8))}” — ${brand}`;
+    else if (path === '/library') title = `Your Library — ${brand}`;
+    else if (path === '/profile') title = `Listener Profile & Replay — ${brand}`;
     else if (path.startsWith('/artist/')) {
       const a = catalog.artists[decodeURIComponent(path.slice(8))];
-      title = `${a?.name || 'Artist'} — Apple Music`;
+      title = `${a?.name || 'Artist'} — ${brand}`;
     } else if (path.startsWith('/genre/')) {
       const g = catalog.genres.find((x) => x.id === decodeURIComponent(path.slice(7)));
-      title = `${g?.name || 'Genre'} — Apple Music`;
+      title = `${g?.name || 'Genre'} — ${brand}`;
     }
     document.title = title;
-  }, [path, catalog, player.current, player.playing]);
+  }, [path, catalog, player.current, player.playing, siteConfig.siteName]);
 
-  if (!player.current) return null;
+  if (!player.current || siteConfig.enableFluidBg === false) return null;
   return (
-    <div className="ambient-bg">
+    <div className="ambient-bg" style={{ opacity: siteConfig.fluidIntensity ?? 0.75 }}>
       <FluidBackground
         src={art(player.current.art, 200)}
         speed={0.5}
@@ -155,10 +189,31 @@ function AmbientLayer({ path }) {
 
 function Shell() {
   const { path } = useRouter();
+  const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
   const [mobileMenu, setMobileMenu] = useState(false);
 
+  const isAdminRoute = path === ADMIN_ROUTE;
+
+  if (siteConfig.maintenanceMode && !isAdminRoute) {
+    return (
+      <div className="maintenance-screen">
+        <div className="nf-card glass">
+          <img className="nf-logo" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+          <h1>{siteConfig.siteName}</h1>
+          <p>{siteConfig.maintenanceMessage || 'We are updating the music catalog. Please check back shortly.'}</p>
+        </div>
+      </div>
+    );
+  }
+
   let page;
-  if (path === '/') page = <HomePage />;
+  if (isAdminRoute) {
+    page = (
+      <Suspense fallback={<div className="page"><div className="subtle-status">Loading console…</div></div>}>
+        <AdminPage />
+      </Suspense>
+    );
+  } else if (path === '/') page = <HomePage />;
   else if (path.startsWith('/artist/')) page = <ArtistPage id={decodeURIComponent(path.slice(8))} />;
   else if (path.startsWith('/album/')) page = <AlbumPage id={decodeURIComponent(path.slice(7))} />;
   else if (path.startsWith('/genre/')) page = <GenrePage id={decodeURIComponent(path.slice(7))} />;
@@ -175,8 +230,11 @@ function Shell() {
       <Sidebar mobileOpen={mobileMenu} onCloseMobile={() => setMobileMenu(false)} />
       <main className="page-scroll">
         <TopBar onOpenMobileMenu={() => setMobileMenu(true)} />
+        {siteConfig.announcement && !isAdminRoute && (
+          <div className="site-announcement">{siteConfig.announcement}</div>
+        )}
         {page}
-        <SiteFooter />
+        {!isAdminRoute && <SiteFooter />}
       </main>
       <ToastBanner />
       <BottomDock />
@@ -186,54 +244,126 @@ function Shell() {
 }
 
 export default function App() {
+  const baseCatalogRef = useRef(null);
+  const baseConfigRef = useRef(DEFAULT_SITE_CONFIG);
   const [catalog, setCatalog] = useState(null);
+  const [siteConfig, setSiteConfig] = useState(() => ({
+    ...DEFAULT_SITE_CONFIG,
+    ...(loadSiteConfigOverride() || {}),
+  }));
   const [introDone, setIntroDone] = useState(false);
+
+  // Apply dynamic theme CSS variables from siteConfig
+  useEffect(() => {
+    const root = document.documentElement;
+    if (siteConfig.accentColor) root.style.setProperty('--accent', siteConfig.accentColor);
+    if (siteConfig.accentColor2) root.style.setProperty('--accent2', siteConfig.accentColor2);
+    if (siteConfig.bgColor) root.style.setProperty('--bg', siteConfig.bgColor);
+  }, [siteConfig.accentColor, siteConfig.accentColor2, siteConfig.bgColor]);
+
+  const rebuildCatalog = useCallback((base, patch) => {
+    const merged = applyCatalogPatch(base, patch);
+    setCatalogRef(merged);
+    setCatalog(merged);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setIntroDone(true), 1000);
-    fetch('data/catalog.json')
-      .then((r) => r.json())
-      .then((c) => {
-        if (c?.songs) {
-          Object.values(c.songs).forEach((s) => {
-            const raw = `${s.title || ''} ${s.artist || ''} ${s.album || ''} ${s.genre || ''} ${s.aliases || ''}`.toLowerCase();
-            s._q = `${raw} ${raw.replace(/['’]/g, '')} ${raw.replace(/fujii/g, 'fuji')}`;
-          });
-        }
-        if (c?.artists) {
-          Object.values(c.artists).forEach((a) => {
-            const raw = (a.name || '').toLowerCase();
-            a._q = `${raw} ${raw.replace(/['’]/g, '')} ${raw.replace(/fujii/g, 'fuji')}`;
-          });
-        }
-        setCatalogRef(c);
-        setCatalog(c);
-      });
+    Promise.all([
+      fetch('data/catalog.json').then((r) => r.json()),
+      fetch('data/site-config.json')
+        .then((r) => (r.ok ? r.json() : DEFAULT_SITE_CONFIG))
+        .catch(() => DEFAULT_SITE_CONFIG),
+    ]).then(([c, cfg]) => {
+      baseCatalogRef.current = c;
+      baseConfigRef.current = { ...DEFAULT_SITE_CONFIG, ...(cfg || {}) };
+      const mergedCfg = { ...baseConfigRef.current, ...(loadSiteConfigOverride() || {}) };
+      setSiteConfig(mergedCfg);
+      if (mergedCfg.enableSplash === false) setIntroDone(true);
+      rebuildCatalog(c, loadCatalogPatch());
+    });
     return () => clearTimeout(t);
-  }, []);
+  }, [rebuildCatalog]);
+
+  const adminActions = useMemo(
+    () => ({
+      upsertSong(song, isNew = false) {
+        const patch = loadCatalogPatch();
+        patch.deletedSongIds = (patch.deletedSongIds || []).filter((id) => id !== song.id);
+        if (isNew || !baseCatalogRef.current?.songs?.[song.id]) {
+          patch.addedSongs = { ...(patch.addedSongs || {}), [song.id]: song };
+        } else {
+          patch.editedSongs = { ...(patch.editedSongs || {}), [song.id]: song };
+        }
+        saveCatalogPatch(patch);
+        rebuildCatalog(baseCatalogRef.current, patch);
+      },
+      deleteSong(songId) {
+        const patch = loadCatalogPatch();
+        if (patch.addedSongs?.[songId]) delete patch.addedSongs[songId];
+        if (patch.editedSongs?.[songId]) delete patch.editedSongs[songId];
+        if (!patch.deletedSongIds.includes(songId)) patch.deletedSongIds.push(songId);
+        saveCatalogPatch(patch);
+        rebuildCatalog(baseCatalogRef.current, patch);
+      },
+      upsertArtist(artist) {
+        const patch = loadCatalogPatch();
+        patch.deletedArtistIds = (patch.deletedArtistIds || []).filter((id) => id !== artist.id);
+        patch.editedArtists = { ...(patch.editedArtists || {}), [artist.id]: artist };
+        saveCatalogPatch(patch);
+        rebuildCatalog(baseCatalogRef.current, patch);
+      },
+      deleteArtist(artistId) {
+        const patch = loadCatalogPatch();
+        if (patch.editedArtists?.[artistId]) delete patch.editedArtists[artistId];
+        if (!patch.deletedArtistIds.includes(artistId)) patch.deletedArtistIds.push(artistId);
+        saveCatalogPatch(patch);
+        rebuildCatalog(baseCatalogRef.current, patch);
+      },
+      updateSiteConfig(nextCfg) {
+        saveSiteConfigOverride(nextCfg);
+        setSiteConfig(nextCfg);
+      },
+      replacePatch(nextPatch) {
+        saveCatalogPatch(nextPatch);
+        rebuildCatalog(baseCatalogRef.current, nextPatch);
+      },
+      reloadFromBase() {
+        setSiteConfig({ ...baseConfigRef.current });
+        rebuildCatalog(baseCatalogRef.current, {
+          addedSongs: {},
+          editedSongs: {},
+          deletedSongIds: [],
+          editedArtists: {},
+          deletedArtistIds: [],
+        });
+      },
+    }),
+    [rebuildCatalog]
+  );
 
   if (!catalog) {
     return (
       <div className="splash-opening">
         <div className="splash-glow" />
-        <img className="splash-logo-img" src="logo.jpg" alt="Apple Music" />
-        <div className="splash-title">apple music</div>
-        <div className="splash-sub">Lossless · Word-Synced Lyrics · Animated Motion</div>
+        <img className="splash-logo-img" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+        <div className="splash-title">{siteConfig.siteName}</div>
+        <div className="splash-sub">{siteConfig.tagline}</div>
       </div>
     );
   }
 
   return (
-    <CatalogProvider value={catalog}>
+    <CatalogProvider value={catalog} adminActions={adminActions} siteConfig={siteConfig}>
       <LibraryProvider>
         <RouterProvider>
           <PlayerProvider>
-            {!introDone && (
+            {siteConfig.enableSplash !== false && !introDone && (
               <div className="splash-opening fade-out" onClick={() => setIntroDone(true)}>
                 <div className="splash-glow" />
-                <img className="splash-logo-img" src="logo.jpg" alt="Apple Music" />
-                <div className="splash-title">apple music</div>
-                <div className="splash-sub">Lossless · Word-Synced Lyrics · Animated Motion</div>
+                <img className="splash-logo-img" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+                <div className="splash-title">{siteConfig.siteName}</div>
+                <div className="splash-sub">{siteConfig.tagline}</div>
               </div>
             )}
             <Shell />

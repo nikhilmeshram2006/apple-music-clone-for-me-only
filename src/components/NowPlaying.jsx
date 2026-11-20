@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { art, loadLyrics } from '../api';
-import { fmt, useLiked, usePlayer, usePlayerTime, useRouter } from '../store';
+import { fmt, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
 import {
   CastIcon, ChevronDown, Explicit, LosslessWave, Lyrics as LyricsIcon, MoreVert, Next, Pause, Play,
@@ -61,6 +61,7 @@ export default function NowPlaying() {
   const player = usePlayer();
   const lib = useLiked();
   const { navigate } = useRouter();
+  const siteConfig = useSiteConfig();
   const song = player.current;
   const [panel, setPanel] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 960 ? 'art' : 'lyrics')); // 'art' | 'lyrics' | 'queue'
   const [artAnim, setArtAnim] = useState(''); // 'going-down' | 'going-up' | 'dip-down'
@@ -113,7 +114,9 @@ export default function NowPlaying() {
 
   return (
     <div className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel} ${artAnim ? `anim-${artAnim}` : ''}`} aria-hidden={!player.nowOpen}>
-      <FluidBackground src={art(song.art, 300)} speed={1.1} dim={0.38} paused={!player.playing} active={player.nowOpen} />
+      {siteConfig?.enableFluidBg !== false && (
+        <FluidBackground src={art(song.art, 300)} speed={1.1} dim={0.38} paused={!player.playing} active={player.nowOpen} />
+      )}
       <div className="np-sheet">
         <button className="np-dismiss" onClick={() => player.setNowOpen(false)} aria-label="Collapse player">
           <span className="grabber" />
@@ -123,8 +126,8 @@ export default function NowPlaying() {
         <div className="np-body">
           {/* LEFT: artwork + transport */}
           <div className="np-left">
-            <div className={`np-art-stage ${player.playing ? 'playing' : 'paused'} ${song.videoArt ? 'has-video' : ''}`} onClick={() => switchPanel('lyrics')}>
-              {song.videoArt && player.nowOpen ? (
+            <div className={`np-art-stage ${player.playing ? 'playing' : 'paused'} ${song.videoArt && siteConfig?.enableMotionArt !== false ? 'has-video' : ''}`} onClick={() => switchPanel('lyrics')}>
+              {song.videoArt && siteConfig?.enableMotionArt !== false && player.nowOpen ? (
                 <video
                   key={song.videoArt}
                   className="np-video-art"

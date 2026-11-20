@@ -1,3 +1,5 @@
+import { getLyricsOverride } from './adminStore';
+
 // Runtime access to free, key-less services + live full-song & word-sync converter:
 //  - Curated catalog: 180+ full-length 320 kbps songs + pre-built word-by-word lyrics + animated Apple Music MP4 covers
 //  - Live Search (iTunes + /api/resolve + LRCLIB): any song searched live is upgraded on-the-fly to full-length 320 kbps
@@ -421,8 +423,10 @@ export function buildWordSyncedFromLrc(lrcText, songDur = 200) {
   return out;
 }
 
-/** Lyrics: curated -> local pre-aligned JSON; live search -> LRCLIB converted into word-by-word sync! */
+/** Lyrics: admin override -> curated local pre-aligned JSON -> live LRCLIB converted into word-by-word sync! */
 export async function loadLyrics(song) {
+  const override = getLyricsOverride(song.id);
+  if (override) return override;
   if (song.lyrics === 'synced' || song.lyrics === 'plain') {
     try {
       const local = await getJSON(`data/lyrics/${song.id}.json`);

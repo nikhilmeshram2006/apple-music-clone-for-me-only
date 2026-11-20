@@ -42,11 +42,21 @@ export function RouterProvider({ children }) {
 }
 export const useRouter = () => useContext(RouterCtx);
 
-// ------------------------------------------------------------------ catalog
+// ------------------------------------------------------------------ catalog & site config
 const CatalogCtx = createContext(null);
+const AdminCatalogCtx = createContext(null);
+const SiteConfigCtx = createContext(null);
 export const useCatalog = () => useContext(CatalogCtx);
-export function CatalogProvider({ value, children }) {
-  return <CatalogCtx.Provider value={value}>{children}</CatalogCtx.Provider>;
+export const useAdminCatalog = () => useContext(AdminCatalogCtx);
+export const useSiteConfig = () => useContext(SiteConfigCtx);
+export function CatalogProvider({ value, adminActions, siteConfig, children }) {
+  return (
+    <SiteConfigCtx.Provider value={siteConfig}>
+      <AdminCatalogCtx.Provider value={adminActions}>
+        <CatalogCtx.Provider value={value}>{children}</CatalogCtx.Provider>
+      </AdminCatalogCtx.Provider>
+    </SiteConfigCtx.Provider>
+  );
 }
 
 // ------------------------------------------------------------------ library

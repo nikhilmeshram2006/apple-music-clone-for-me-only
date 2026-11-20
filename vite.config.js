@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 function fullAudioMiddleware() {
   const cache = new Map();
@@ -182,6 +184,53 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
           res.statusCode = 500;
           res.end(JSON.stringify({ songs: [], artists: [], albums: [], error: String(e) }));
         }
+      });
+
+      // 3) Local dev-only Admin save endpoint (never bundled or active in production)
+      server.middlewares.use('/__admin/save', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+          return;
+        }
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+        req.on('end', () => {
+          try {
+            const payload = JSON.parse(body || '{}');
+            const dataDir = path.resolve(process.cwd(), 'public', 'data');
+            const lyrDir = path.join(dataDir, 'lyrics');
+            fs.mkdirSync(lyrDir, { recursive: true });
+            if (payload.catalog) {
+              fs.writeFileSync(
+                path.join(dataDir, 'catalog.json'),
+                JSON.stringify(payload.catalog),
+                'utf-8'
+              );
+            }
+            if (payload.siteConfig) {
+              fs.writeFileSync(
+                path.join(dataDir, 'site-config.json'),
+                JSON.stringify(payload.siteConfig, null, 2),
+                'utf-8'
+              );
+            }
+            if (payload.lyricsOverrides && typeof payload.lyricsOverrides === 'object') {
+              Object.entries(payload.lyricsOverrides).forEach(([id, lyr]) => {
+                if (/^[a-zA-Z0-9_-]+$/.test(id) && lyr) {
+                  fs.writeFileSync(path.join(lyrDir, `${id}.json`), JSON.stringify(lyr), 'utf-8');
+                }
+              });
+            }
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: true }));
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ ok: false, error: String(e) }));
+          }
+        });
       });
     },
   };
