@@ -203,11 +203,13 @@ export default function ArtistPage({ id }) {
   }, [localSongs, remote]);
 
   const essential = localSongs[0] || songs[0];
+  const heroVideo4k =
+    siteConfig?.enableMotionArt !== false && !videoFailed ? seeded?.heroVideo4k || null : null;
   const heroVideo =
     siteConfig?.enableMotionArt !== false && !videoFailed
       ? seeded?.heroVideo || localSongs.find((s) => s.videoArt)?.videoArt || null
       : null;
-  const heroBackdrop = heroImg || seeded?.image || (essential && art(essential.art, 1200));
+  const heroBackdrop = heroImg || seeded?.image || (essential && art(essential.art, 2000));
   const portrait = seeded?.image || heroBackdrop;
   const followed = lib.isFollowing(id);
   const artistPlaying = playing && songs.some((s) => s.id === currentId);
@@ -239,18 +241,20 @@ export default function ArtistPage({ id }) {
     <div className="page artist-page">
       {/* FULL-BLEED APPLE MUSIC CINEMATIC ARTIST HERO */}
       <div className="artist-hero cinematic">
-        {heroVideo ? (
+        {heroVideo || heroVideo4k ? (
           <video
-            key={heroVideo}
+            key={heroVideo4k || heroVideo}
             className="ah-hero-video"
-            src={heroVideo}
             poster={heroBackdrop || undefined}
             autoPlay
             loop
             muted
             playsInline
             onError={() => setVideoFailed(true)}
-          />
+          >
+            {heroVideo4k && <source src={heroVideo4k} type='video/mp4; codecs="hvc1.2.20000000.H150.B0"' />}
+            {heroVideo && <source src={heroVideo} type="video/mp4" />}
+          </video>
         ) : (
           <div
             className="ah-hero-photo"
