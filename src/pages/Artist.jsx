@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { art, artistImage, artistLookup } from '../api';
-import FluidBackground from '../components/FluidBackground';
-import { Back, Check, Lyrics, Pause, Play, Shuffle, Star } from '../components/Icons';
+import { Back, Close, Lyrics, Pause, Play, Shuffle, Star } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
-import { useActiveSong, useCatalog, useLibrary, usePlayerActions, useRouter } from '../store';
+import { useActiveSong, useCatalog, useLibrary, usePlayerActions, useRouter, useSiteConfig } from '../store';
 
 const BIO_BLURBS = {
   Pop: 'Chart-dominating hooks, widescreen production, and unmistakable vocal presence that define modern pop radio.',
@@ -11,19 +10,153 @@ const BIO_BLURBS = {
   'K-Pop': 'Precision choreography, genre-fluid production, and global fandom power reshaping contemporary pop culture.',
   Romance: 'Intimate storytelling and soaring melodies built for late-night drives, slow dances, and unforgettable moments.',
   Bollywood: 'Soul-stirring vocals and lush cinematic arrangements from the heart of Indian film music.',
+  Rock: 'Anthemic guitars, arena-sized choruses, and unmistakable sonic identity spanning generations.',
+  'Hip-Hop': 'Hard-hitting rhythms, lyrical craft, and culture-defining production shaping modern hip-hop.',
+  'R&B': 'Velvet vocals, nocturnal grooves, and deeply emotional songwriting.',
+  French: 'Chic Parisian melodies, poetic lyricism, and sleek electro-pop elegance.',
+  Latin: 'Infectious global rhythms, urbano heat, and chart-topping Latin artistry.',
 };
+
+// Bespoke custom wordmark styles for artists without an official Apple Music PNG logo
+const CUSTOM_WORDMARK_MAP = {
+  'lana del rey': 'wm-crimson-serif',
+  'cigarettes after sex': 'wm-crimson-serif',
+  'édith piaf': 'wm-crimson-serif',
+  'indila': 'wm-crimson-serif',
+  'hozier': 'wm-crimson-serif',
+  'sufjan stevens': 'wm-crimson-serif',
+  'twenty one pilots': 'wm-condensed',
+  'linkin park': 'wm-condensed',
+  'nirvana': 'wm-condensed',
+  'arctic monkeys': 'wm-condensed',
+  'green day': 'wm-condensed',
+  'imagine dragons': 'wm-condensed',
+  'the killers': 'wm-condensed',
+  'stray kids': 'wm-condensed',
+  'king gnu': 'wm-condensed',
+  'måneskin': 'wm-condensed',
+  'ado': 'wm-condensed',
+  'u2': 'wm-geometric',
+  'coldplay': 'wm-geometric',
+  'daft punk': 'wm-geometric',
+  'tame impala': 'wm-geometric',
+  'phoenix': 'wm-geometric',
+  'onerepublic': 'wm-geometric',
+  'the 1975': 'wm-geometric',
+  'videoclub': 'wm-geometric',
+  'lord huron': 'wm-geometric',
+  'yung kai': 'wm-geometric',
+  'd4vd': 'wm-geometric',
+  'queen': 'wm-monarch',
+  'elvis presley': 'wm-monarch',
+  'taylor swift': 'wm-monarch',
+  'adele': 'wm-monarch',
+  'beyoncé': 'wm-monarch',
+  'lady gaga': 'wm-monarch',
+  'arijit singh': 'wm-monarch',
+  'shreya ghoshal': 'wm-monarch',
+  'atif aslam': 'wm-monarch',
+  'yoasobi': 'wm-syne',
+  'blackpink': 'wm-syne',
+  'bts': 'wm-syne',
+  'newjeans': 'wm-syne',
+  'aespa': 'wm-syne',
+  'ive': 'wm-syne',
+  'le sserafim': 'wm-syne',
+  'twice': 'wm-syne',
+  'rosé': 'wm-syne',
+  'kenshi yonezu': 'wm-syne',
+  'radwimps': 'wm-syne',
+  'fujii kaze': 'wm-syne',
+  'travis scott': 'wm-syne',
+  'kendrick lamar': 'wm-syne',
+  'bad bunny': 'wm-syne',
+  'rosalía': 'wm-syne',
+  'billie eilish': 'wm-editorial',
+  'sabrina carpenter': 'wm-editorial',
+  'chappell roan': 'wm-editorial',
+  'olivia rodrigo': 'wm-editorial',
+  'ariana grande': 'wm-editorial',
+  'rihanna': 'wm-editorial',
+  'dua lipa': 'wm-editorial',
+  'sza': 'wm-editorial',
+  'frank ocean': 'wm-editorial',
+  'bruno mars': 'wm-editorial',
+  'shakira': 'wm-editorial',
+  'the weeknd': 'wm-clean',
+  'drake': 'wm-clean',
+  'ed sheeran': 'wm-clean',
+  'justin bieber': 'wm-clean',
+  'charlie puth': 'wm-clean',
+  'shawn mendes': 'wm-clean',
+  'post malone': 'wm-clean',
+  'jvke': 'wm-clean',
+  'sai abhyankkar': 'wm-monarch',
+  'cup of joe': 'wm-geometric',
+  'sunkissed lola': 'wm-crimson-serif',
+  'libianca': 'wm-editorial',
+};
+
+const FALLBACK_STYLES = ['wm-editorial', 'wm-condensed', 'wm-geometric', 'wm-monarch', 'wm-syne', 'wm-crimson-serif', 'wm-clean'];
+
+function pickWordmarkClass(name = '', genre = '') {
+  const key = name.trim().toLowerCase();
+  if (CUSTOM_WORDMARK_MAP[key]) return CUSTOM_WORDMARK_MAP[key];
+  const g = genre.toLowerCase();
+  if (g.includes('rock') || g.includes('metal') || g.includes('punk')) return 'wm-condensed';
+  if (g.includes('j-pop') || g.includes('k-pop') || g.includes('hip-hop')) return 'wm-syne';
+  if (g.includes('romance') || g.includes('french') || g.includes('chanson')) return 'wm-crimson-serif';
+  if (g.includes('bollywood') || g.includes('indian') || g.includes('classical')) return 'wm-monarch';
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return FALLBACK_STYLES[h % FALLBACK_STYLES.length];
+}
+
+function ArtistWordmark({ name, logo, genre, accentColor }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [logo, name]);
+
+  if (logo && !logoFailed) {
+    return (
+      <div className="ah-wordmark-wrap">
+        <img
+          className="ah-wordmark-img"
+          src={logo}
+          alt={name}
+          decoding="async"
+          onError={() => setLogoFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  const wmClass = pickWordmarkClass(name, genre);
+  return (
+    <div className="ah-wordmark-wrap">
+      <h1 className={`ah-wordmark-text ${wmClass}`} style={accentColor ? { '--wm-accent': accentColor } : undefined}>
+        {name}
+      </h1>
+    </div>
+  );
+}
 
 export default function ArtistPage({ id }) {
   const catalog = useCatalog();
   const player = usePlayerActions();
+  const siteConfig = useSiteConfig();
   const { currentId, playing, toggle, playSong } = useActiveSong();
   const lib = useLibrary();
   const { navigate } = useRouter();
   const seeded = catalog.artists[id];
 
   const [remote, setRemote] = useState(null);
-  const [heroImg, setHeroImg] = useState(seeded?.image || null);
+  const [heroImg, setHeroImg] = useState(seeded?.heroImage || seeded?.image || null);
   const [fans, setFans] = useState(seeded?.fans || 0);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   const localSongs = useMemo(
     () => Object.values(catalog.songs).filter((s) => s.artistId === id || (seeded && s.artist.includes(seeded.name))),
@@ -32,13 +165,16 @@ export default function ArtistPage({ id }) {
 
   useEffect(() => {
     let alive = true;
-    setHeroImg(seeded?.image || null);
+    setHeroImg(seeded?.heroImage || seeded?.image || null);
     setFans(seeded?.fans || 0);
     setRemote(null);
-    artistLookup(id, seeded?.name || localSongs[0]?.artist || '').then((d) => {
+    setInfoOpen(false);
+    setVideoFailed(false);
+    const lookupId = seeded?.appleId || id;
+    artistLookup(lookupId, seeded?.name || localSongs[0]?.artist || '').then((d) => {
       if (!alive) return;
       setRemote(d);
-      if (!seeded?.image && (d.name || seeded?.name)) {
+      if (!seeded?.heroImage && !seeded?.image && (d.name || seeded?.name)) {
         artistImage(d.name || seeded.name).then((im) => {
           if (alive && im?.image) {
             setHeroImg(im.image);
@@ -50,7 +186,7 @@ export default function ArtistPage({ id }) {
     return () => {
       alive = false;
     };
-  }, [id, seeded]);
+  }, [id, seeded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const name = seeded?.name || remote?.name || localSongs[0]?.artist || 'Artist';
   const genre = seeded?.genre || remote?.genre || 'Music';
@@ -67,8 +203,12 @@ export default function ArtistPage({ id }) {
   }, [localSongs, remote]);
 
   const essential = localSongs[0] || songs[0];
-  const motionVideo = localSongs.find((s) => s.videoArt)?.videoArt || null;
-  const portrait = heroImg || (essential && art(essential.art, 1000));
+  const heroVideo =
+    siteConfig?.enableMotionArt !== false && !videoFailed
+      ? seeded?.heroVideo || localSongs.find((s) => s.videoArt)?.videoArt || null
+      : null;
+  const heroBackdrop = heroImg || seeded?.image || (essential && art(essential.art, 1200));
+  const portrait = seeded?.image || heroBackdrop;
   const followed = lib.isFollowing(id);
   const artistPlaying = playing && songs.some((s) => s.id === currentId);
 
@@ -80,64 +220,107 @@ export default function ArtistPage({ id }) {
     [catalog, id, genre, seeded]
   );
 
+  const shareArtist = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href).then(
+        () => lib.notify(`Copied link for ${name}`, 'success'),
+        () => lib.notify(`Sharing ${name}`, 'success')
+      );
+    } else {
+      lib.notify(`Viewing ${name}`, 'success');
+    }
+  };
+
+  const bioText =
+    seeded?.bio ||
+    `${BIO_BLURBS[genre] || BIO_BLURBS.Pop} Explore ${name}’s full-length discography with synchronized word-by-word karaoke lyrics and animated artwork.`;
+
   return (
     <div className="page artist-page">
-      {/* ANIMATED ARTIST PROFILE HERO */}
-      <div className="artist-hero">
-        <FluidBackground src={portrait} speed={1.25} dim={0.28} />
-        {motionVideo ? (
+      {/* FULL-BLEED APPLE MUSIC CINEMATIC ARTIST HERO */}
+      <div className="artist-hero cinematic">
+        {heroVideo ? (
           <video
-            className="ah-motion-video"
-            src={motionVideo}
-            poster={portrait}
+            key={heroVideo}
+            className="ah-hero-video"
+            src={heroVideo}
+            poster={heroBackdrop || undefined}
             autoPlay
             loop
             muted
             playsInline
+            onError={() => setVideoFailed(true)}
           />
         ) : (
-          <div className="ah-portrait" style={{ backgroundImage: portrait ? `url(${portrait})` : undefined }} />
+          <div
+            className="ah-hero-photo"
+            style={{ backgroundImage: heroBackdrop ? `url(${heroBackdrop})` : undefined }}
+          />
         )}
-        <div className="ah-vignette" />
+        <div className="ah-cinematic-fade" />
 
+        {/* TOP-LEFT BACK + TOP-RIGHT FLOATING GLASS PILL */}
         <button className="ah-back glass" onClick={() => navigate('/')} aria-label="Back to Home">
           <Back size={20} />
         </button>
 
-        <div className="ah-actions-top">
+        <div className="ah-top-pill glass">
           <button
-            className={`pill-btn glass ${followed ? 'on' : ''}`}
-            onClick={() => lib.toggleFollow({ id, name, image: portrait, genre })}
+            className="ah-top-pill-btn"
+            onClick={() => player.playList(songs, 0, { shuffle: true })}
+            title="Shuffle Artist"
+            aria-label="Shuffle artist"
           >
-            {followed ? <><Check size={15} /> Following</> : <><Star size={15} /> Favorite</>}
+            <Shuffle size={17} />
+          </button>
+          <button
+            className="ah-top-pill-btn"
+            onClick={shareArtist}
+            title="Copy Artist Link"
+            aria-label="Share artist"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
           </button>
         </div>
 
-        <div className="ah-content">
-          <div className="ah-avatar">
-            <div className="ah-rings" aria-hidden="true">
-              <span /><span /><span />
-            </div>
-            {portrait && <img src={portrait} alt={name} />}
-            <span className="ah-live-dot" title="Animated Artist Motion" />
-          </div>
-          <div className="ah-text">
-            <div className="ah-verified">
-              <span className="v-badge">✓</span> Featured Artist · {genre}
-              {fans > 0 && ` · ${(fans / 1_000_000 >= 1 ? (fans / 1_000_000).toFixed(1) + 'M' : (fans / 1000).toFixed(0) + 'K')} fans`}
-            </div>
-            <h1 className="ah-name">{name}</h1>
-          </div>
-          <div className="ah-playbar">
+        {/* CENTERED CUSTOM WORDMARK + 3 ICONIC APPLE MUSIC CIRCLE BUTTONS */}
+        <div className="ah-center-stage">
+          <ArtistWordmark
+            name={name}
+            logo={seeded?.logo}
+            genre={genre}
+            accentColor={seeded?.colors?.[0]}
+          />
+
+          <div className="ah-action-trio">
             <button
-              className="ah-play-main"
+              className="ah-trio-glass"
+              onClick={() => setInfoOpen(true)}
+              title={`About ${name}`}
+              aria-label={`About ${name}`}
+            >
+              <span className="ah-info-i">i</span>
+            </button>
+
+            <button
+              className="ah-trio-play"
               onClick={() => (artistPlaying ? toggle() : player.playList(songs, 0))}
-              aria-label="Play artist"
+              aria-label={artistPlaying ? 'Pause artist' : 'Play artist'}
             >
               {artistPlaying ? <Pause size={26} /> : <Play size={26} />}
             </button>
-            <button className="pill-btn glass" onClick={() => player.playList(songs, 0, { shuffle: true })}>
-              <Shuffle size={16} /> Shuffle
+
+            <button
+              className={`ah-trio-glass ${followed ? 'on' : ''}`}
+              onClick={() => lib.toggleFollow({ id, name, image: portrait, genre })}
+              title={followed ? 'Remove from Favorites' : 'Favorite Artist'}
+              aria-label="Favorite artist"
+            >
+              <Star size={19} />
             </button>
           </div>
         </div>
@@ -148,7 +331,7 @@ export default function ArtistPage({ id }) {
         <div className="ab-top-grid">
           {essential && (
             <div className="ab-featured">
-              <h2>Featured Release</h2>
+              <h2>Latest Release</h2>
               <div
                 className="feat-release"
                 onClick={() => {
@@ -156,7 +339,7 @@ export default function ArtistPage({ id }) {
                   if (essential.lyrics === 'synced') player.setNowOpen(true);
                 }}
               >
-                {essential.videoArt ? (
+                {essential.videoArt && siteConfig?.enableMotionArt !== false ? (
                   <video
                     className="fr-video"
                     src={essential.videoArt}
@@ -188,7 +371,7 @@ export default function ArtistPage({ id }) {
 
           <div className="ab-topsongs">
             <div className="sec-head">
-              <h2>Top Songs</h2>
+              <h2>Top Songs ›</h2>
               <span className="sec-sub">{songs.length} full-length tracks</span>
             </div>
             <div className="top-songs-grid">
@@ -233,25 +416,6 @@ export default function ArtistPage({ id }) {
           </section>
         )}
 
-        {/* ABOUT CARD WITH ANIMATED PORTRAIT */}
-        <section className="sec">
-          <h2>About {name}</h2>
-          <div className="about-card">
-            <FluidBackground src={portrait} speed={0.8} dim={0.45} />
-            <div className="ac-inner">
-              <img src={portrait} alt={name} />
-              <div>
-                <div className="ac-kicker">{genre.toUpperCase()} · APPLE MUSIC EDITION</div>
-                <h3>{name}</h3>
-                <p>
-                  {BIO_BLURBS[genre] || BIO_BLURBS.Pop} Explore {name}’s catalog above — tracks badged with the quote icon
-                  include word-by-word karaoke lyrics synchronized directly to the 256 kbps Apple preview stream.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* SIMILAR ARTISTS */}
         {related.length > 0 && (
           <section className="sec">
@@ -266,6 +430,43 @@ export default function ArtistPage({ id }) {
           </section>
         )}
       </div>
+
+      {/* ABOUT ARTIST MODAL (triggered by the 'i' button) */}
+      {infoOpen && (
+        <div className="admin-modal-backdrop" onClick={() => setInfoOpen(false)}>
+          <div className="artist-info-modal glass" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-head">
+              <div className="aim-head-left">
+                {portrait && <img src={portrait} alt={name} />}
+                <div>
+                  <div className="ac-kicker">{genre.toUpperCase()} · ARTIST</div>
+                  <h2>{name}</h2>
+                </div>
+              </div>
+              <button className="icon-btn" onClick={() => setInfoOpen(false)} aria-label="Close">
+                <Close size={18} />
+              </button>
+            </div>
+            <p className="aim-bio">{bioText}</p>
+            <div className="aim-meta-grid">
+              <div className="admin-stat-card">
+                <span>Genre</span>
+                <b>{genre}</b>
+              </div>
+              <div className="admin-stat-card">
+                <span>Catalog Tracks</span>
+                <b>{songs.length}</b>
+              </div>
+              {fans > 0 && (
+                <div className="admin-stat-card">
+                  <span>Listeners</span>
+                  <b>{fans >= 1_000_000 ? `${(fans / 1_000_000).toFixed(1)}M` : `${Math.round(fans / 1000)}K`}</b>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
