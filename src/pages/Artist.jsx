@@ -1,8 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { art, artistImage, artistLookup } from '../api';
 import { Back, Close, Lyrics, Pause, Play, Shuffle, Star } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
-import { useActiveSong, useCatalog, useLibrary, usePlayerActions, useRouter, useSiteConfig } from '../store';
+import { useActiveSong, useCatalog, useLibrary, usePlayer, usePlayerActions, useRouter, useSiteConfig } from '../store';
+
+function shouldUse4KVideo() {
+  if (typeof window === 'undefined') return false;
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (conn?.saveData) return false;
+  if (conn?.effectiveType && /^(slow-2g|2g|3g)$/.test(conn.effectiveType)) return false;
+  const mem = navigator.deviceMemory || 8;
+  const cores = navigator.hardwareConcurrency || 8;
+  const isTV = /SMART-TV|Tizen|Web0S|WebOS|BRAVIA|Android TV|GoogleTV|FireTV|AFT/i.test(navigator.userAgent);
+  if (isTV || mem < 4 || cores < 4) return false;
+  return window.innerWidth >= 1280;
+}
 
 const BIO_BLURBS = {
   Pop: 'Chart-dominating hooks, widescreen production, and unmistakable vocal presence that define modern pop radio.',
@@ -146,6 +158,7 @@ function ArtistWordmark({ name, logo, genre, accentColor }) {
 export default function ArtistPage({ id }) {
   const catalog = useCatalog();
   const player = usePlayerActions();
+  const { nowOpen } = usePlayer();
   const siteConfig = useSiteConfig();
   const { currentId, playing, toggle, playSong } = useActiveSong();
   const lib = useLibrary();
@@ -157,6 +170,11 @@ export default function ArtistPage({ id }) {
   const [fans, setFans] = useState(seeded?.fans || 0);
   const [infoOpen, setInfoOpen] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const heroWrapRef = useRef(null);
+  const videoRef = useRef(null);
+  const inViewRef = useRef(true);
+  const use4k = useMemo(() => shouldUse4KVideo(), []);
 
   const localSongs = useMemo(
     () => Object.values(catalog.songs).filter((s) => s.artistId === id || (seeded && s.artist.includes(seeded.name))),
@@ -170,6 +188,7 @@ export default function ArtistPage({ id }) {
     setRemote(null);
     setInfoOpen(false);
     setVideoFailed(false);
+    setVideoReady(false);
     const lookupId = seeded?.appleId || id;
     artistLookup(lookupId, seeded?.name || localSongs[0]?.artist || '').then((d) => {
       if (!alive) return;
@@ -204,7 +223,7 @@ export default function ArtistPage({ id }) {
 
   const essential = localSongs[0] || songs[0];
   const heroVideo4k =
-    siteConfig?.enableMotionArt !== false && !videoFailed ? seeded?.heroVideo4k || null : null;
+    use4k && siteConfig?.enableMotionArt !== false && !videoFailed ? seeded?.heroVideo4k || null : null;
   const heroVideo =
     siteConfig?.enableMotionArt !== false && !videoFailed
       ? seeded?.heroVideo || localSongs.find((s) => s.videoArt)?.videoArt || null
@@ -213,6 +232,42 @@ export default function ArtistPage({ id }) {
   const portrait = seeded?.image || heroBackdrop;
   const followed = lib.isFollowing(id);
   const artistPlaying = playing && songs.some((s) => s.id === currentId);
+
+  // Smoothly pause hero motion video when scrolled off-screen, hidden tab, or full-screen Now Playing is open
+  useEffect(() => {
+    const v = videoRef.current;
+    const wrap = heroWrapRef.current;
+    if (!v || !wrap) return;
+
+    const syncPlayState = () => {
+      const shouldPlay = inViewRef.current && !document.hidden && !nowOpen;
+      if (shouldPlay) {
+        if (v.paused) v.play().catch(() => {});
+      } else {
+        if (!v.paused) v.pause();
+      }
+    };
+
+    let io;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          inViewRef.current = Boolean(entries[0]?.isIntersecting);
+          syncPlayState();
+        },
+        { threshold: 0.05 }
+      );
+      io.observe(wrap);
+    }
+
+    document.addEventListener('visibilitychange', syncPlayState);
+    syncPlayState();
+
+    return () => {
+      io?.disconnect();
+      document.removeEventListener('visibilitychange', syncPlayState);
+    };
+  }, [heroVideo, heroVideo4k, nowOpen]);
 
   const related = useMemo(
     () =>
@@ -240,26 +295,39 @@ export default function ArtistPage({ id }) {
   return (
     <div className="page artist-page">
       {/* FULL-BLEED APPLE MUSIC CINEMATIC ARTIST HERO */}
-      <div className="artist-hero cinematic">
-        {heroVideo || heroVideo4k ? (
+      <div className="artist-hero cinematic" ref={heroWrapRef}>
+        <div
+          className={`ah-hero-photo ${videoReady ? 'under-video' : ''}`}
+          style={{ backgroundImage: heroBackdrop ? `url(${heroBackdrop})` : undefined }}
+        />
+        {(heroVideo || heroVideo4k) && (
           <video
+            ref={videoRef}
             key={heroVideo4k || heroVideo}
-            className="ah-hero-video"
+            className={`ah-hero-video ${videoReady ? 'ready' : ''}`}
             poster={heroBackdrop || undefined}
             autoPlay
             loop
             muted
             playsInline
-            onError={() => setVideoFailed(true)}
+            preload="auto"
+            disablePictureInPicture
+            disableRemotePlayback
+            onPlaying={() => setVideoReady(true)}
+            onCanPlay={() => setVideoReady(true)}
+            onEnded={(e) => {
+              const v = e.currentTarget;
+              v.currentTime = 0;
+              v.play().catch(() => {});
+            }}
+            onError={() => {
+              setVideoReady(false);
+              setVideoFailed(true);
+            }}
           >
             {heroVideo4k && <source src={heroVideo4k} type='video/mp4; codecs="hvc1.2.20000000.H150.B0"' />}
             {heroVideo && <source src={heroVideo} type="video/mp4" />}
           </video>
-        ) : (
-          <div
-            className="ah-hero-photo"
-            style={{ backgroundImage: heroBackdrop ? `url(${heroBackdrop})` : undefined }}
-          />
         )}
         <div className="ah-cinematic-fade" />
 

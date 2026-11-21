@@ -418,6 +418,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   justify-content: center;
   padding: 36px 38px 42px;
   background: #070709;
+  contain: layout style paint;
 }
 .ah-hero-video {
   position: absolute;
@@ -427,6 +428,14 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   object-fit: cover;
   object-position: center 22%;
   pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  will-change: opacity;
+  transition: opacity 0.45s ease;
+}
+.ah-hero-video.ready {
+  opacity: 1;
 }
 .ah-hero-photo {
   position: absolute;
@@ -435,8 +444,13 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   height: 108%;
   background-size: cover;
   background-position: center 20%;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
   animation: kenburnsHero 24s ease-in-out infinite alternate;
   pointer-events: none;
+}
+.ah-hero-photo.under-video {
+  animation: none;
 }
 @keyframes kenburnsHero {
   0% { transform: scale(1) translate3d(0, 0, 0); }
