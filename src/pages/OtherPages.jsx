@@ -7,17 +7,18 @@ import {
 } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
 import { fmt, useCatalog, useLibrary, usePlayerActions, useRouter } from '../store';
+import { stripScriptChars } from '../utils/studioCore';
 
 // ================================================================== SEARCH / BROWSE
 export function SearchPage({ initialQuery = '' }) {
   const catalog = useCatalog();
   const { navigate } = useRouter();
-  const [q, setQ] = useState(initialQuery);
+  const [q, setQ] = useState(() => stripScriptChars(initialQuery, 120));
   const deferredQ = useDeferredValue(q);
   const [remote, setRemote] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => setQ(initialQuery), [initialQuery]);
+  useEffect(() => setQ(stripScriptChars(initialQuery, 120)), [initialQuery]);
 
   useEffect(() => {
     const term = deferredQ.trim();
@@ -361,7 +362,8 @@ export function LibraryPage() {
   const synced = useMemo(() => Object.values(catalog.songs).filter((s) => s.lyrics === 'synced'), [catalog]);
 
   const makePlaylist = () => {
-    const name = window.prompt('New playlist name:', 'Late Night Mix');
+    const raw = window.prompt('New playlist name:', 'Late Night Mix');
+    const name = raw ? stripScriptChars(raw, 60).trim() : '';
     if (name) {
       const p = lib.createPlaylist(name, []);
       navigate(`/playlist/${p.id}`);
@@ -597,11 +599,11 @@ export function ProfilePage() {
               <div className="ph-edit">
                 <input
                   value={lib.profile.name}
-                  onChange={(e) => lib.setProfile({ ...lib.profile, name: e.target.value })}
+                  onChange={(e) => lib.setProfile({ ...lib.profile, name: stripScriptChars(e.target.value, 48) })}
                 />
                 <input
                   value={lib.profile.handle}
-                  onChange={(e) => lib.setProfile({ ...lib.profile, handle: e.target.value })}
+                  onChange={(e) => lib.setProfile({ ...lib.profile, handle: stripScriptChars(e.target.value, 48) })}
                 />
                 <button className="pill-btn sm" onClick={() => { setEditing(false); lib.notify('Profile saved', 'success'); }}>Save</button>
               </div>

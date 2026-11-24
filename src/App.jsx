@@ -1,14 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { art, setCatalogRef } from './api';
 import {
-  ADMIN_ROUTE,
   applyCatalogPatch,
   DEFAULT_SITE_CONFIG,
   loadCatalogPatch,
   loadSiteConfigOverride,
+  matchesPrivateRoute,
   saveCatalogPatch,
   saveSiteConfigOverride,
-} from './adminStore';
+} from './utils/studioCore';
 import BottomDock, { TopBar } from './components/BottomDock';
 import FluidBackground from './components/FluidBackground';
 import { Check, Close, Home, Library, Search, User } from './components/Icons';
@@ -28,7 +28,7 @@ import {
   useToast,
 } from './store';
 
-const AdminPage = lazy(() => import('./pages/Admin'));
+const StudioPanel = lazy(() => import('./pages/StudioPanel'));
 
 function Sidebar({ mobileOpen, onCloseMobile }) {
   const { path, navigate } = useRouter();
@@ -149,7 +149,7 @@ function ToastBanner() {
   );
 }
 
-function AmbientLayer({ path }) {
+function AmbientLayer({ path, isPrivateRoute }) {
   const catalog = useCatalog();
   const player = usePlayer();
   const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
@@ -158,7 +158,7 @@ function AmbientLayer({ path }) {
     if (player.current && player.playing) return;
     const brand = siteConfig.siteName || 'Apple Music';
     let title = `${brand} — Stream Full-Length Songs & Word-Synced Lyrics`;
-    if (path === ADMIN_ROUTE) title = `Endministrator — ${brand}`;
+    if (isPrivateRoute) title = `Private Console — ${brand}`;
     else if (path === '/search') title = `Browse & Search — ${brand}`;
     else if (path.startsWith('/search/')) title = `Search “${decodeURIComponent(path.slice(8))}” — ${brand}`;
     else if (path === '/library') title = `Your Library — ${brand}`;
@@ -171,7 +171,7 @@ function AmbientLayer({ path }) {
       title = `${g?.name || 'Genre'} — ${brand}`;
     }
     document.title = title;
-  }, [path, catalog, player.current, player.playing, siteConfig.siteName]);
+  }, [path, isPrivateRoute, catalog, player.current, player.playing, siteConfig.siteName]);
 
   if (!player.current || siteConfig.enableFluidBg === false) return null;
   return (
@@ -187,14 +187,53 @@ function AmbientLayer({ path }) {
   );
 }
 
+function isKnownPublicPath(path) {
+  return (
+    path === '/' ||
+    path.startsWith('/artist/') ||
+    path.startsWith('/album/') ||
+    path.startsWith('/genre/') ||
+    path.startsWith('/playlist/') ||
+    path.startsWith('/search') ||
+    path === '/library' ||
+    path === '/profile'
+  );
+}
+
 function Shell() {
   const { path } = useRouter();
   const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [routeState, setRouteState] = useState({ path: '', isPrivate: false });
 
-  const isAdminRoute = path === ADMIN_ROUTE;
+  useEffect(() => {
+    let alive = true;
+    matchesPrivateRoute(path).then((ok) => {
+      if (alive) setRouteState({ path, isPrivate: ok });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [path]);
 
-  if (siteConfig.maintenanceMode && !isAdminRoute) {
+  const isPrivateRoute = routeState.path === path && routeState.isPrivate;
+  const checkingPrivate = !isKnownPublicPath(path) && routeState.path !== path;
+
+  if (checkingPrivate) {
+    return (
+      <div className="app-shell">
+        <Sidebar mobileOpen={mobileMenu} onCloseMobile={() => setMobileMenu(false)} />
+        <main className="page-scroll">
+          <TopBar onOpenMobileMenu={() => setMobileMenu(true)} />
+          <div className="page" />
+        </main>
+        <BottomDock />
+        <NowPlaying />
+      </div>
+    );
+  }
+
+  if (siteConfig.maintenanceMode && !isPrivateRoute) {
     return (
       <div className="maintenance-screen">
         <div className="nf-card glass">
@@ -207,10 +246,10 @@ function Shell() {
   }
 
   let page;
-  if (isAdminRoute) {
+  if (isPrivateRoute) {
     page = (
       <Suspense fallback={<div className="page"><div className="subtle-status">Loading console…</div></div>}>
-        <AdminPage />
+        <StudioPanel />
       </Suspense>
     );
   } else if (path === '/') page = <HomePage />;
@@ -226,15 +265,15 @@ function Shell() {
 
   return (
     <div className="app-shell">
-      <AmbientLayer path={path} />
+      <AmbientLayer path={path} isPrivateRoute={isPrivateRoute} />
       <Sidebar mobileOpen={mobileMenu} onCloseMobile={() => setMobileMenu(false)} />
       <main className="page-scroll">
         <TopBar onOpenMobileMenu={() => setMobileMenu(true)} />
-        {siteConfig.announcement && !isAdminRoute && (
+        {siteConfig.announcement && !isPrivateRoute && (
           <div className="site-announcement">{siteConfig.announcement}</div>
         )}
         {page}
-        {!isAdminRoute && <SiteFooter />}
+        {!isPrivateRoute && <SiteFooter />}
       </main>
       <ToastBanner />
       <BottomDock />

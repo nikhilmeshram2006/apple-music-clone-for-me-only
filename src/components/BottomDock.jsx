@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { art, searchAll } from '../api';
+import { stripScriptChars } from '../utils/studioCore';
 import { useCatalog, usePlayer, usePlayerActions, usePlayerTime, useRouter } from '../store';
 import { Close, Home, Library, Lyrics, Next, Pause, Play, Search, User } from './Icons';
 
@@ -111,7 +112,7 @@ export function TopBar({ onOpenMobileMenu }) {
             value={q}
             onFocus={() => setOpen(true)}
             onChange={(e) => {
-              setQ(e.target.value);
+              setQ(stripScriptChars(e.target.value, 120));
               setOpen(true);
             }}
             placeholder="Search songs, artists (SZA, YOASOBI, Indila…)"

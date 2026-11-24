@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { art, buildWordSyncedFromLrc } from '../api';
 import {
   clearSecurityLogs,
+  containsScriptPayload,
   DEFAULT_SITE_CONFIG,
   downloadJSON,
   getLyricsOverride,
@@ -17,11 +18,12 @@ import {
   setAdminAuthenticated,
   setAdminPasscode,
   stripInternalCatalogFields,
+  stripScriptChars,
   touchAdminSession,
   validateBackupPayload,
   verifyAdminCredentials,
   verifyAdminPasscode,
-} from '../adminStore';
+} from '../utils/studioCore';
 import { Check, Close, Gear, Lyrics, Music, Play, Plus, Search, Trash, User } from '../components/Icons';
 import { useAdminCatalog, useCatalog, useLibrary, usePlayerActions, useRouter, useSiteConfig } from '../store';
 
@@ -48,7 +50,7 @@ const EMPTY_SONG = {
   aliases: '',
 };
 
-export default function AdminPage() {
+export default function StudioPanel() {
   const catalog = useCatalog();
   const admin = useAdminCatalog();
   const siteConfig = useSiteConfig();
@@ -90,7 +92,7 @@ export default function AdminPage() {
       if (!isAdminAuthenticated()) {
         setAuthed(false);
         setSecLogs(getSecurityLogs());
-        lib.notify('Endministrator session expired — please sign in again', 'error');
+        lib.notify('Studio session expired — please sign in again', 'error');
       }
     }, 15000);
     return () => clearInterval(id);
@@ -133,16 +135,32 @@ export default function AdminPage() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (containsScriptPayload(userInput) || containsScriptPayload(passInput)) {
+      logSecurityEvent('SCRIPT_INJECTION_BLOCKED', 'Blocked script attempt in Console login');
+      setUserInput('');
+      setPassInput('');
+      setSecLogs(getSecurityLogs());
+      setAuthErr('Blocked: scripts are not allowed in login inputs.');
+      return;
+    }
     setAuthErr('');
     const res = await verifyAdminCredentials(userInput, passInput);
     if (res.ok) {
       setAuthed(true);
       setUserInput('');
       setPassInput('');
-      lib.notify('Endministrator unlocked', 'success');
+      setSecLogs(getSecurityLogs());
+      lib.notify('Studio Console unlocked', 'success');
+    } else if (res.blockedScript) {
+      setUserInput('');
+      setPassInput('');
+      setSecLogs(getSecurityLogs());
+      setAuthErr('Blocked: scripts are not allowed in login inputs.');
     } else if (res.lockedSeconds) {
+      setSecLogs(getSecurityLogs());
       setAuthErr(`Too many failed attempts. Try again in ${res.lockedSeconds}s.`);
     } else {
+      setSecLogs(getSecurityLogs());
       setAuthErr('Incorrect username or password.');
     }
   };
@@ -150,7 +168,8 @@ export default function AdminPage() {
   const handleLock = () => {
     setAdminAuthenticated(false);
     setAuthed(false);
-    lib.notify('Endministrator locked', 'success');
+    setSecLogs(getSecurityLogs());
+    lib.notify('Studio Console locked', 'success');
   };
 
   const openSongEditor = (song) => {
@@ -165,17 +184,17 @@ export default function AdminPage() {
   };
 
   const saveLyricsFromText = (songId, rawText, duration) => {
-    const trimmed = (rawText || '').trim();
+    const trimmed = stripScriptChars(rawText, 25000).trim();
     if (!trimmed) return null;
     const hasTimestamps = /\[\d+:\d+(?:[.:]\d+)?\]/.test(trimmed);
     if (hasTimestamps) {
       const lines = buildWordSyncedFromLrc(trimmed, Number(duration) || 200);
       const plain = trimmed.replace(/\[\d+:\d+(?:[.:]\d+)?\]/g, '').trim();
-      const payload = { id: songId, synced: true, offset: 0, source: 'admin', lines, plain, rawLrc: trimmed };
+      const payload = { id: songId, synced: true, offset: 0, source: 'studio', lines, plain, rawLrc: trimmed };
       saveLyricsOverride(songId, payload);
       return 'synced';
     }
-    const payload = { id: songId, synced: false, offset: 0, source: 'admin', lines: [], plain: trimmed };
+    const payload = { id: songId, synced: false, offset: 0, source: 'studio', lines: [], plain: trimmed };
     saveLyricsOverride(songId, payload);
     return 'plain';
   };
@@ -266,11 +285,12 @@ export default function AdminPage() {
 
   const searchItunesForAdd = async (e) => {
     e.preventDefault();
-    if (!itQuery.trim()) return;
+    const cleaned = sanitizeText(itQuery, 120);
+    if (!cleaned) return;
     setItBusy(true);
     try {
       const r = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(itQuery.trim())}&entity=song&limit=8`
+        `https://itunes.apple.com/search?term=${encodeURIComponent(cleaned)}&entity=song&limit=8`
       ).then((x) => x.json());
       setItResults(r.results || []);
     } catch {
@@ -304,19 +324,31 @@ export default function AdminPage() {
 
   const handleSaveArtist = (e) => {
     e.preventDefault();
-    if (!editingArtist?.name?.trim()) return;
+    touchAdminSession();
+    const cleanName = sanitizeText(editingArtist?.name, 120);
+    if (!cleanName) {
+      lib.notify('Artist name is required', 'error');
+      return;
+    }
+    if (editingArtist.image && !isSafeUrl(editingArtist.image)) {
+      lib.notify('Invalid or unsafe portrait URL', 'error');
+      return;
+    }
     admin.upsertArtist({
       ...editingArtist,
-      fans: Number(editingArtist.fans) || 0,
+      name: cleanName,
+      genre: sanitizeText(editingArtist.genre, 60),
+      fans: Math.max(0, Number(editingArtist.fans) || 0),
     });
     setEditingArtist(null);
-    lib.notify(`Updated artist “${editingArtist.name}”`, 'success');
+    lib.notify(`Updated artist “${cleanName}”`, 'success');
   };
 
   const handleSaveToLocalProject = async () => {
+    touchAdminSession();
     setSavingDisk(true);
     try {
-      const res = await fetch('/__admin/save', {
+      const res = await fetch('/__studio/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -360,7 +392,7 @@ export default function AdminPage() {
         if (validated.catalogPatch) admin.replacePatch(validated.catalogPatch);
         logSecurityEvent('BACKUP_IMPORTED', file.name);
         setSecLogs(getSecurityLogs());
-        lib.notify('Imported validated admin backup successfully', 'success');
+        lib.notify('Imported validated backup successfully', 'success');
       } catch {
         lib.notify('Invalid JSON backup file', 'error');
       }
@@ -371,6 +403,10 @@ export default function AdminPage() {
   const handleChangePasscode = async (e) => {
     e.preventDefault();
     touchAdminSession();
+    if (containsScriptPayload(curPass) || containsScriptPayload(nextPass)) {
+      lib.notify('Blocked: scripts are not allowed in password fields', 'error');
+      return;
+    }
     if (!(await verifyAdminPasscode(curPass))) {
       lib.notify('Current passcode is incorrect', 'error');
       return;
@@ -392,24 +428,44 @@ export default function AdminPage() {
       <div className="page admin-gate-page">
         <div className="admin-gate-card glass">
           <div className="admin-badge">PRIVATE ACCESS</div>
-          <h1>Endministrator</h1>
-          <p>Sign in with your Endministrator credentials to manage songs, artists, lyrics, and global website settings.</p>
+          <h1>Studio Console</h1>
+          <p>Sign in with your operator credentials to manage songs, artists, lyrics, and global website settings.</p>
           <form onSubmit={handleLogin} className="admin-gate-form">
             <input
               type="text"
               value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (containsScriptPayload(val)) {
+                  setAuthErr('Blocked: script or HTML injection is not allowed.');
+                  setUserInput(stripScriptChars(val, 64));
+                  return;
+                }
+                setAuthErr('');
+                setUserInput(stripScriptChars(val, 64));
+              }}
               placeholder="Username"
               autoComplete="username"
+              maxLength={64}
               autoFocus
               required
             />
             <input
               type="password"
               value={passInput}
-              onChange={(e) => setPassInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (containsScriptPayload(val)) {
+                  setAuthErr('Blocked: script or HTML injection is not allowed.');
+                  setPassInput(stripScriptChars(val, 128));
+                  return;
+                }
+                setAuthErr('');
+                setPassInput(stripScriptChars(val, 128));
+              }}
               placeholder="Password"
               autoComplete="current-password"
+              maxLength={128}
               required
             />
             {authErr && <div className="admin-err">{authErr}</div>}
@@ -435,7 +491,7 @@ export default function AdminPage() {
     <div className="page admin-page">
       <header className="admin-header">
         <div>
-          <div className="eyebrow">ENDMINISTRATOR</div>
+          <div className="eyebrow">PRIVATE CONSOLE</div>
           <h1>Website & Catalog Control</h1>
         </div>
         <div className="admin-header-actions">
@@ -465,7 +521,7 @@ export default function AdminPage() {
           <b>{allSongs.filter((s) => s.lyrics === 'synced').length}</b>
         </div>
         <div className="admin-stat-card">
-          <span>Local Admin Edits</span>
+          <span>Local Console Edits</span>
           <b>{modifiedIds.size + (patch.deletedSongIds?.length || 0)}</b>
         </div>
       </div>
@@ -496,7 +552,7 @@ export default function AdminPage() {
               <Search size={15} />
               <input
                 value={songQuery}
-                onChange={(e) => setSongQuery(e.target.value)}
+                onChange={(e) => setSongQuery(stripScriptChars(e.target.value, 120))}
                 placeholder="Search any song by title, artist, album, or ID…"
               />
             </div>
@@ -562,7 +618,7 @@ export default function AdminPage() {
           <form className="admin-itunes-bar" onSubmit={searchItunesForAdd}>
             <input
               value={itQuery}
-              onChange={(e) => setItQuery(e.target.value)}
+              onChange={(e) => setItQuery(stripScriptChars(e.target.value, 120))}
               placeholder="Search song + artist on iTunes (e.g. Blinding Lights The Weeknd)…"
             />
             <button type="submit" className="pill-btn sm primary" disabled={itBusy}>
@@ -588,15 +644,15 @@ export default function AdminPage() {
           <form className="admin-form-grid" onSubmit={handleAddSong}>
             <label>
               Title *
-              <input value={newSong.title} onChange={(e) => setNewSong({ ...newSong, title: e.target.value })} required />
+              <input value={newSong.title} onChange={(e) => setNewSong({ ...newSong, title: stripScriptChars(e.target.value, 160) })} required />
             </label>
             <label>
               Artist *
-              <input value={newSong.artist} onChange={(e) => setNewSong({ ...newSong, artist: e.target.value })} required />
+              <input value={newSong.artist} onChange={(e) => setNewSong({ ...newSong, artist: stripScriptChars(e.target.value, 160) })} required />
             </label>
             <label>
               Album
-              <input value={newSong.album} onChange={(e) => setNewSong({ ...newSong, album: e.target.value })} />
+              <input value={newSong.album} onChange={(e) => setNewSong({ ...newSong, album: stripScriptChars(e.target.value, 160) })} />
             </label>
             <label>
               Genre
@@ -608,15 +664,15 @@ export default function AdminPage() {
             </label>
             <label className="span-2">
               Full-Length Audio URL / Path * (e.g. <code>data/audio/my_song.m4a</code> or direct MP3/M4A URL)
-              <input value={newSong.audio} onChange={(e) => setNewSong({ ...newSong, audio: e.target.value })} required />
+              <input value={newSong.audio} onChange={(e) => setNewSong({ ...newSong, audio: stripScriptChars(e.target.value, 500) })} required />
             </label>
             <label className="span-2">
               Cover Artwork URL (supports <code>{'{s}'}</code> template or direct JPG/PNG URL)
-              <input value={newSong.art} onChange={(e) => setNewSong({ ...newSong, art: e.target.value })} />
+              <input value={newSong.art} onChange={(e) => setNewSong({ ...newSong, art: stripScriptChars(e.target.value, 500) })} />
             </label>
             <label className="span-2">
               Animated Motion Video URL (optional MP4)
-              <input value={newSong.videoArt} onChange={(e) => setNewSong({ ...newSong, videoArt: e.target.value })} />
+              <input value={newSong.videoArt} onChange={(e) => setNewSong({ ...newSong, videoArt: stripScriptChars(e.target.value, 500) })} />
             </label>
             <label>
               Duration (seconds)
@@ -624,19 +680,19 @@ export default function AdminPage() {
             </label>
             <label>
               Release Year
-              <input value={newSong.year} onChange={(e) => setNewSong({ ...newSong, year: e.target.value })} />
+              <input value={newSong.year} onChange={(e) => setNewSong({ ...newSong, year: stripScriptChars(e.target.value, 10) })} />
             </label>
             <label>
               Custom Track ID (optional)
-              <input value={newSong.id} onChange={(e) => setNewSong({ ...newSong, id: e.target.value })} placeholder="Auto-generated if empty" />
+              <input value={newSong.id} onChange={(e) => setNewSong({ ...newSong, id: stripScriptChars(e.target.value, 64) })} placeholder="Auto-generated if empty" />
             </label>
             <label>
               Search Aliases (optional)
-              <input value={newSong.aliases} onChange={(e) => setNewSong({ ...newSong, aliases: e.target.value })} placeholder="Alt spellings, movie name…" />
+              <input value={newSong.aliases} onChange={(e) => setNewSong({ ...newSong, aliases: stripScriptChars(e.target.value, 240) })} placeholder="Alt spellings, movie name…" />
             </label>
             <label className="span-2">
               Synced LRC or Plain Lyrics (optional — paste <code>[00:12.34] Line</code> for word-by-word karaoke sync)
-              <textarea rows={5} value={newLrc} onChange={(e) => setNewLrc(e.target.value)} placeholder="[00:05.00] First line of lyrics..." />
+              <textarea rows={5} value={newLrc} onChange={(e) => setNewLrc(stripScriptChars(e.target.value, 25000))} placeholder="[00:05.00] First line of lyrics..." />
             </label>
             <label className="admin-check">
               <input type="checkbox" checked={newSong.explicit} onChange={(e) => setNewSong({ ...newSong, explicit: e.target.checked })} />
@@ -657,7 +713,7 @@ export default function AdminPage() {
           <div className="admin-toolbar">
             <div className="admin-search-box">
               <Search size={15} />
-              <input value={artistQuery} onChange={(e) => setArtistQuery(e.target.value)} placeholder="Search artists…" />
+              <input value={artistQuery} onChange={(e) => setArtistQuery(stripScriptChars(e.target.value, 120))} placeholder="Search artists…" />
             </div>
           </div>
           <div className="admin-table-wrap">
@@ -699,35 +755,35 @@ export default function AdminPage() {
               Website Brand Name
               <input
                 value={siteConfig.siteName}
-                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, siteName: e.target.value })}
+                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, siteName: stripScriptChars(e.target.value, 60) })}
               />
             </label>
             <label>
               Logo URL / Path
               <input
                 value={siteConfig.logoUrl}
-                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, logoUrl: e.target.value })}
+                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, logoUrl: stripScriptChars(e.target.value, 300) })}
               />
             </label>
             <label className="span-2">
               Splash Tagline
               <input
                 value={siteConfig.tagline}
-                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, tagline: e.target.value })}
+                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, tagline: stripScriptChars(e.target.value, 140) })}
               />
             </label>
             <label className="span-2">
               Footer Description
               <input
                 value={siteConfig.footerDesc}
-                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, footerDesc: e.target.value })}
+                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, footerDesc: stripScriptChars(e.target.value, 300) })}
               />
             </label>
             <label className="span-2">
               Top Site Announcement Banner (leave empty to hide)
               <input
                 value={siteConfig.announcement}
-                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, announcement: e.target.value })}
+                onChange={(e) => admin.updateSiteConfig({ ...siteConfig, announcement: stripScriptChars(e.target.value, 180) })}
                 placeholder="e.g. New Tamil & J-Pop songs just added!"
               />
             </label>
@@ -775,7 +831,7 @@ export default function AdminPage() {
               ['enableMotionArt', 'Animated Motion Album Covers'],
               ['enableLyrics', 'Word-by-Word Synced Lyrics'],
               ['enableSplash', 'Opening Splash Screen'],
-              ['maintenanceMode', 'Maintenance Mode (blocks regular users, keeps Admin open)'],
+              ['maintenanceMode', 'Maintenance Mode (blocks public visitors, keeps Private Console open)'],
             ].map(([key, label]) => (
               <label key={key} className="admin-check card">
                 <input
@@ -794,7 +850,7 @@ export default function AdminPage() {
                 Maintenance Message
                 <input
                   value={siteConfig.maintenanceMessage}
-                  onChange={(e) => admin.updateSiteConfig({ ...siteConfig, maintenanceMessage: e.target.value })}
+                  onChange={(e) => admin.updateSiteConfig({ ...siteConfig, maintenanceMessage: stripScriptChars(e.target.value, 240) })}
                 />
               </label>
             </div>
@@ -854,7 +910,7 @@ export default function AdminPage() {
             <button
               className="pill-btn"
               onClick={() =>
-                downloadJSON('admin-backup.json', {
+                downloadJSON('studio-backup.json', {
                   siteConfig,
                   catalogPatch: loadCatalogPatch(),
                   lyricsPatch: loadLyricsPatch(),
@@ -869,15 +925,27 @@ export default function AdminPage() {
             </label>
           </div>
 
-          <h2 style={{ marginTop: 28 }}>Change Admin Passcode</h2>
+          <h2 style={{ marginTop: 28 }}>Change Console Passcode</h2>
           <form className="admin-form-grid" onSubmit={handleChangePasscode} style={{ maxWidth: 520 }}>
             <label>
               Current Passcode
-              <input type="password" value={curPass} onChange={(e) => setCurPass(e.target.value)} required />
+              <input
+                type="password"
+                value={curPass}
+                onChange={(e) => setCurPass(stripScriptChars(e.target.value, 128))}
+                maxLength={128}
+                required
+              />
             </label>
             <label>
               New Passcode
-              <input type="password" value={nextPass} onChange={(e) => setNextPass(e.target.value)} required />
+              <input
+                type="password"
+                value={nextPass}
+                onChange={(e) => setNextPass(stripScriptChars(e.target.value, 128))}
+                maxLength={128}
+                required
+              />
             </label>
             <div className="span-2">
               <button type="submit" className="pill-btn primary">Update Passcode</button>
@@ -921,14 +989,14 @@ export default function AdminPage() {
           <button
             className="pill-btn danger"
             onClick={() => {
-              if (window.confirm('Reset all local browser admin overrides (songs, artists, lyrics, settings)?')) {
+              if (window.confirm('Reset all local browser overrides (songs, artists, lyrics, settings)?')) {
                 resetAllAdminOverrides();
                 admin.reloadFromBase();
-                lib.notify('All local admin overrides cleared', 'success');
+                lib.notify('All local overrides cleared', 'success');
               }
             }}
           >
-            <Trash size={15} /> Reset All Local Admin Overrides
+            <Trash size={15} /> Reset All Local Overrides
           </button>
         </section>
       )}
@@ -944,15 +1012,15 @@ export default function AdminPage() {
             <form className="admin-form-grid" onSubmit={handleSaveEditedSong}>
               <label>
                 Title
-                <input value={editingSong.title} onChange={(e) => setEditingSong({ ...editingSong, title: e.target.value })} required />
+                <input value={editingSong.title} onChange={(e) => setEditingSong({ ...editingSong, title: stripScriptChars(e.target.value, 160) })} required />
               </label>
               <label>
                 Artist
-                <input value={editingSong.artist} onChange={(e) => setEditingSong({ ...editingSong, artist: e.target.value })} required />
+                <input value={editingSong.artist} onChange={(e) => setEditingSong({ ...editingSong, artist: stripScriptChars(e.target.value, 160) })} required />
               </label>
               <label>
                 Album
-                <input value={editingSong.album} onChange={(e) => setEditingSong({ ...editingSong, album: e.target.value })} />
+                <input value={editingSong.album} onChange={(e) => setEditingSong({ ...editingSong, album: stripScriptChars(e.target.value, 160) })} />
               </label>
               <label>
                 Genre
@@ -964,15 +1032,15 @@ export default function AdminPage() {
               </label>
               <label className="span-2">
                 Audio URL / Local Path
-                <input value={editingSong.audio || ''} onChange={(e) => setEditingSong({ ...editingSong, audio: e.target.value })} />
+                <input value={editingSong.audio || ''} onChange={(e) => setEditingSong({ ...editingSong, audio: stripScriptChars(e.target.value, 500) })} />
               </label>
               <label className="span-2">
                 Artwork URL
-                <input value={editingSong.art || ''} onChange={(e) => setEditingSong({ ...editingSong, art: e.target.value })} />
+                <input value={editingSong.art || ''} onChange={(e) => setEditingSong({ ...editingSong, art: stripScriptChars(e.target.value, 500) })} />
               </label>
               <label className="span-2">
                 Animated Motion Video URL (optional MP4)
-                <input value={editingSong.videoArt || ''} onChange={(e) => setEditingSong({ ...editingSong, videoArt: e.target.value })} />
+                <input value={editingSong.videoArt || ''} onChange={(e) => setEditingSong({ ...editingSong, videoArt: stripScriptChars(e.target.value, 500) })} />
               </label>
               <label>
                 Duration (s)
@@ -980,7 +1048,7 @@ export default function AdminPage() {
               </label>
               <label>
                 Year
-                <input value={editingSong.year || ''} onChange={(e) => setEditingSong({ ...editingSong, year: e.target.value })} />
+                <input value={editingSong.year || ''} onChange={(e) => setEditingSong({ ...editingSong, year: stripScriptChars(e.target.value, 10) })} />
               </label>
               <label>
                 Lyrics Offset (s)
@@ -988,11 +1056,11 @@ export default function AdminPage() {
               </label>
               <label>
                 Search Aliases
-                <input value={editingSong.aliases || ''} onChange={(e) => setEditingSong({ ...editingSong, aliases: e.target.value })} />
+                <input value={editingSong.aliases || ''} onChange={(e) => setEditingSong({ ...editingSong, aliases: stripScriptChars(e.target.value, 240) })} />
               </label>
               <label className="span-2">
                 Override Lyrics (paste LRC <code>[mm:ss.xx]</code> for word-by-word sync, or plain text)
-                <textarea rows={4} value={editingLrc} onChange={(e) => setEditingLrc(e.target.value)} placeholder="Leave empty to keep existing lyrics" />
+                <textarea rows={4} value={editingLrc} onChange={(e) => setEditingLrc(stripScriptChars(e.target.value, 25000))} placeholder="Leave empty to keep existing lyrics" />
               </label>
               <label className="admin-check">
                 <input type="checkbox" checked={Boolean(editingSong.explicit)} onChange={(e) => setEditingSong({ ...editingSong, explicit: e.target.checked })} />
@@ -1018,15 +1086,15 @@ export default function AdminPage() {
             <form className="admin-form-grid" onSubmit={handleSaveArtist}>
               <label>
                 Artist Name
-                <input value={editingArtist.name} onChange={(e) => setEditingArtist({ ...editingArtist, name: e.target.value })} required />
+                <input value={editingArtist.name} onChange={(e) => setEditingArtist({ ...editingArtist, name: stripScriptChars(e.target.value, 120) })} required />
               </label>
               <label>
                 Primary Genre
-                <input value={editingArtist.genre || ''} onChange={(e) => setEditingArtist({ ...editingArtist, genre: e.target.value })} />
+                <input value={editingArtist.genre || ''} onChange={(e) => setEditingArtist({ ...editingArtist, genre: stripScriptChars(e.target.value, 60) })} />
               </label>
               <label className="span-2">
                 Portrait Image URL
-                <input value={editingArtist.image || ''} onChange={(e) => setEditingArtist({ ...editingArtist, image: e.target.value })} />
+                <input value={editingArtist.image || ''} onChange={(e) => setEditingArtist({ ...editingArtist, image: stripScriptChars(e.target.value, 500) })} />
               </label>
               <label>
                 Fans Count (affects Top Artists order)

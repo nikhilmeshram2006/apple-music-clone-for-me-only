@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { art, loadLyrics } from '../api';
-import { isSafeExternalUrl } from '../adminStore';
+import { isSafeExternalUrl } from '../utils/studioCore';
 import { fmt, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
 import {

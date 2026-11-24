@@ -1,4 +1,4 @@
-import { getLyricsOverride } from './adminStore';
+import { getLyricsOverride } from './utils/studioCore';
 
 // Runtime access to free, key-less services + live full-song & word-sync converter:
 //  - Curated catalog: 180+ full-length 320 kbps songs + pre-built word-by-word lyrics + animated Apple Music MP4 covers
@@ -105,6 +105,9 @@ async function getJSON(url) {
 
 let jsonpN = 0;
 function jsonp(url) {
+  if (typeof url !== 'string' || !url.startsWith('https://api.deezer.com/')) {
+    return Promise.reject(new Error('Blocked unsafe JSONP origin'));
+  }
   if (memo.has(url)) return memo.get(url);
   const p = new Promise((resolve, reject) => {
     const cb = `__jp${Date.now()}_${jsonpN++}`;

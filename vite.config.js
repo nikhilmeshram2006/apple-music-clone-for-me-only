@@ -231,8 +231,8 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
         }
       });
 
-      // 3) Local dev-only Admin save endpoint (never bundled or active in production)
-      server.middlewares.use('/__admin/save', (req, res) => {
+      // 3) Local dev-only Studio save endpoint (never bundled or active in production)
+      server.middlewares.use('/__studio/save', (req, res) => {
         const ip = req.socket?.remoteAddress || 'local';
         if (!adminLimiter(ip)) {
           res.statusCode = 429;
@@ -306,8 +306,9 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: './',
+  esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
   build: {
     outDir: 'docs',
     sourcemap: false,
@@ -320,4 +321,4 @@ export default defineConfig({
   },
   plugins: [react(), fullAudioMiddleware()],
   server: { port: 5173, open: false, host: 'localhost' },
-});
+}));

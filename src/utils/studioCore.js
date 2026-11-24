@@ -1,15 +1,16 @@
-// Admin storage, PBKDF2-SHA256 password hashing (210k iterations + salt),
-// in-memory expiring sessions, input/URL sanitization, and security audit logging
+// Studio core configuration, PBKDF2-SHA256 verification (210k iterations + salt),
+// hashed private route check, strict anti-XSS/script-injection guards, and audit log.
 
-export const ADMIN_ROUTE = '/endministrator';
+// SHA-256 digest of the private route path (plaintext route is never stored in code)
+const ROUTE_DIGEST = '64bea3f46bb789ad41b0acb88d3e27d7ab9d631d3607537864beb42209919799';
 
-// Allowed username hashes (SHA-256 of normalized usernames)
+// Allowed operator username digests (SHA-256)
 const ALLOWED_USER_HASHES = new Set([
   'd61d2a3588dc176c0476ec4bce6be1fbcccfa99949f223591def2a2d13617bc0',
   'b7f620e83826f58bd2b3773010afd8133ea04605074d0af971fbe36e8975112f',
 ]);
 
-// PBKDF2-HMAC-SHA256 (210,000 iterations) default salted verifier (plaintext never stored)
+// PBKDF2-HMAC-SHA256 (210,000 iterations) salted verifier (plaintext never stored)
 const PBKDF2_ITERATIONS = 210000;
 const DEFAULT_PASS_SALT = 'am_endmin_v2_9f4c2a8e1b7d';
 const DEFAULT_PASS_DK = '5dc5d0029827702a274d311c48f2e4e420f6e929677ebe7ad43136de45f3a39a';
@@ -39,11 +40,11 @@ export const DEFAULT_SITE_CONFIG = {
 };
 
 const KEYS = {
-  config: 'am_admin_site_config',
-  catalogPatch: 'am_admin_catalog_patch',
-  lyricsPatch: 'am_admin_lyrics_patch',
-  passRecord: 'am_admin_pass_pbkdf2',
-  auditLog: 'am_admin_audit_log',
+  config: 'am_studio_site_config',
+  catalogPatch: 'am_studio_catalog_patch',
+  lyricsPatch: 'am_studio_lyrics_patch',
+  passRecord: 'am_studio_pass_pbkdf2',
+  auditLog: 'am_studio_audit_log',
 };
 
 // Strictly private in-memory auth state (cannot be spoofed via sessionStorage/localStorage)
@@ -69,12 +70,25 @@ function writeLS(key, value) {
   }
 }
 
-// ------------------------------------------------------------------ Input & URL Sanitization
-export function sanitizeText(val, maxLen = 200) {
+// ------------------------------------------------------------------ Anti-Script & Input Sanitization
+const SCRIPT_INJECTION_RE =
+  /(<\s*\/?\s*(script|iframe|svg|object|embed|img|style|link|meta|base|form|input|math)\b|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on[a-z]{2,20}\s*=|\beval\s*\(|\bnew\s+Function\b|\bFunction\s*\(|document\s*\.\s*(cookie|write|domain|location)|window\s*\.\s*(location|open|eval)|innerHTML|outerHTML|\\x3c|&#x3c;|%3c\s*script)/i;
+
+export function containsScriptPayload(val) {
+  return SCRIPT_INJECTION_RE.test(String(val ?? ''));
+}
+
+export function stripScriptChars(val, maxLen = 200) {
   return String(val ?? '')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-    .trim()
+    .replace(/[<>]/g, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/vbscript\s*:/gi, '')
     .slice(0, maxLen);
+}
+
+export function sanitizeText(val, maxLen = 200) {
+  return stripScriptChars(val, maxLen).trim();
 }
 
 export function isSafeColor(val) {
@@ -83,7 +97,7 @@ export function isSafeColor(val) {
 
 export function isSafeExternalUrl(val) {
   const s = String(val || '').trim();
-  if (!s) return false;
+  if (!s || containsScriptPayload(s)) return false;
   try {
     const u = new URL(s);
     return u.protocol === 'https:';
@@ -94,8 +108,8 @@ export function isSafeExternalUrl(val) {
 
 export function isSafeUrl(val, allowRelative = true) {
   const s = String(val || '').trim();
-  if (!s) return true; // optional fields can be empty
-  // Reject dangerous schemes immediately
+  if (!s) return true;
+  if (containsScriptPayload(s)) return false;
   if (/^\s*(javascript|vbscript|data|file):/i.test(s)) return false;
   if (allowRelative && !s.includes('://') && !s.startsWith('//')) {
     return /^[a-zA-Z0-9._/\-{}]+$/.test(s) && !s.includes('..');
@@ -185,7 +199,7 @@ export function clearSecurityLogs() {
   localStorage.removeItem(KEYS.auditLog);
 }
 
-// ------------------------------------------------------------------ Crypto & Auth (PBKDF2-SHA256)
+// ------------------------------------------------------------------ Crypto, Route Hash & Auth
 function toHex(buf) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -194,6 +208,20 @@ export async function sha256Hex(text) {
   const buf = new TextEncoder().encode(text);
   const hash = await crypto.subtle.digest('SHA-256', buf);
   return toHex(hash);
+}
+
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+export async function matchesPrivateRoute(path) {
+  const norm = String(path || '').trim().toLowerCase().replace(/\/+$/, '');
+  if (!norm || norm === '/' || norm.length > 64) return false;
+  const digest = await sha256Hex(norm);
+  return timingSafeEqual(digest, ROUTE_DIGEST);
 }
 
 async function pbkdf2Hex(password, salt, iterations = PBKDF2_ITERATIONS) {
@@ -207,14 +235,11 @@ async function pbkdf2Hex(password, salt, iterations = PBKDF2_ITERATIONS) {
   return toHex(bits);
 }
 
-function timingSafeEqual(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 export async function verifyAdminPasscode(input) {
+  if (containsScriptPayload(input)) {
+    logSecurityEvent('SCRIPT_INJECTION_BLOCKED', 'Blocked script payload in passcode check');
+    return false;
+  }
   const stored = readLS(KEYS.passRecord, null);
   const salt = stored?.salt || DEFAULT_PASS_SALT;
   const expected = stored?.dk || DEFAULT_PASS_DK;
@@ -224,6 +249,10 @@ export async function verifyAdminPasscode(input) {
 }
 
 export async function verifyAdminCredentials(username, password) {
+  if (containsScriptPayload(username) || containsScriptPayload(password)) {
+    logSecurityEvent('SCRIPT_INJECTION_BLOCKED', 'Blocked script payload in login form');
+    return { ok: false, blockedScript: true };
+  }
   if (Date.now() < _lockedUntil) {
     const secs = Math.ceil((_lockedUntil - Date.now()) / 1000);
     logSecurityEvent('LOGIN_BLOCKED', `Rate-limited (${secs}s remaining)`);
@@ -237,7 +266,7 @@ export async function verifyAdminCredentials(username, password) {
     _lockedUntil = 0;
     _inMemoryAuthed = true;
     _sessionExpiresAt = Date.now() + SESSION_TTL_MS;
-    logSecurityEvent('LOGIN_SUCCESS', 'Endministrator session started');
+    logSecurityEvent('LOGIN_SUCCESS', 'Studio session started');
     return { ok: true };
   }
   _failedAttempts += 1;
@@ -252,6 +281,10 @@ export async function verifyAdminCredentials(username, password) {
 }
 
 export async function setAdminPasscode(newPasscode) {
+  if (containsScriptPayload(newPasscode)) {
+    logSecurityEvent('SCRIPT_INJECTION_BLOCKED', 'Blocked script payload in password change');
+    throw new Error('Unsafe characters in password');
+  }
   const randBytes = new Uint8Array(16);
   crypto.getRandomValues(randBytes);
   const salt = toHex(randBytes);
@@ -280,7 +313,7 @@ export function touchAdminSession() {
 export function setAdminAuthenticated(val) {
   _inMemoryAuthed = Boolean(val);
   _sessionExpiresAt = val ? Date.now() + SESSION_TTL_MS : 0;
-  if (!val) logSecurityEvent('LOGOUT', 'Endministrator session locked');
+  if (!val) logSecurityEvent('LOGOUT', 'Studio session locked');
 }
 
 // ------------------------------------------------------------------ Overrides & Catalog Merging
