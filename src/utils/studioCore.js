@@ -1,8 +1,10 @@
 // Studio core configuration, PBKDF2-SHA256 verification (210k iterations + salt),
-// hashed private route check, strict anti-XSS/script-injection guards, and audit log.
+// PBKDF2-salted private route matching, strict anti-XSS/script-injection guards, and audit log.
 
-// SHA-256 digest of the private route path (plaintext route is never stored in code)
-const ROUTE_DIGEST = '64bea3f46bb789ad41b0acb88d3e27d7ab9d631d3607537864beb42209919799';
+// PBKDF2-HMAC-SHA256 (100,000 iterations) salted verifier for the private route
+const ROUTE_SALT = '9d4f82c1a6e30b75f18e42d9c0a376b4';
+const ROUTE_ITERATIONS = 100000;
+const ROUTE_DK = '51b75e6cbaa668c8f937c6105ef95d077c3f768cc26f3a3477b958ca27b4a55f';
 
 // Allowed operator username digests (SHA-256)
 const ALLOWED_USER_HASHES = new Set([
@@ -12,10 +14,12 @@ const ALLOWED_USER_HASHES = new Set([
 
 // PBKDF2-HMAC-SHA256 (210,000 iterations) salted verifier (plaintext never stored)
 const PBKDF2_ITERATIONS = 210000;
-const DEFAULT_PASS_SALT = 'am_endmin_v2_9f4c2a8e1b7d';
-const DEFAULT_PASS_DK = '5dc5d0029827702a274d311c48f2e4e420f6e929677ebe7ad43136de45f3a39a';
+const MAX_PBKDF2_ITERATIONS = 500000;
+const DEFAULT_PASS_SALT = '7f3c91a0e4b28d6f1209c5a84e7b31d2';
+const DEFAULT_PASS_DK = '1a2403ff3fc7e4daf5f4dbc2fde559519bf70b17a7560abf2bbc016ac64cb54f';
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30-minute session expiry
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export const DEFAULT_SITE_CONFIG = {
   siteName: 'apple music',
@@ -50,6 +54,7 @@ const KEYS = {
 // Strictly private in-memory auth state (cannot be spoofed via sessionStorage/localStorage)
 let _inMemoryAuthed = false;
 let _sessionExpiresAt = 0;
+let _sessionProof = null;
 let _failedAttempts = 0;
 let _lockedUntil = 0;
 
@@ -122,6 +127,52 @@ export function isSafeUrl(val, allowRelative = true) {
   }
 }
 
+export function safeCssUrl(val) {
+  const s = String(val || '').trim();
+  if (!s || !isSafeUrl(s)) return undefined;
+  return `url("${encodeURI(s).replace(/["'()\\]/g, '')}")`;
+}
+
+export function sanitizeSongEntry(s) {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
+  const out = {};
+  Object.keys(s).forEach((k) => {
+    if (!FORBIDDEN_KEYS.has(k)) out[k] = s[k];
+  });
+  if (out.title != null) out.title = sanitizeText(out.title, 160);
+  if (out.artist != null) out.artist = sanitizeText(out.artist, 160);
+  if (out.album != null) out.album = sanitizeText(out.album, 160);
+  if (out.aliases != null) out.aliases = sanitizeText(out.aliases, 240);
+  if (out.audio && !isSafeUrl(out.audio)) delete out.audio;
+  if (out.preview && !isSafeUrl(out.preview)) delete out.preview;
+  if (out.art && !isSafeUrl(out.art)) delete out.art;
+  if (out.videoArt && !isSafeUrl(out.videoArt)) out.videoArt = null;
+  if (out.appleUrl && !isSafeExternalUrl(out.appleUrl)) out.appleUrl = '';
+  if (out.albumViewUrl && !isSafeExternalUrl(out.albumViewUrl)) out.albumViewUrl = '';
+  if (out.ArtistImageHint && !isSafeUrl(out.ArtistImageHint)) delete out.ArtistImageHint;
+  if (Array.isArray(out.colors)) out.colors = out.colors.filter(isSafeColor);
+  return out;
+}
+
+export function sanitizeArtistEntry(a) {
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
+  const out = {};
+  Object.keys(a).forEach((k) => {
+    if (!FORBIDDEN_KEYS.has(k)) out[k] = a[k];
+  });
+  if (out.name != null) out.name = sanitizeText(out.name, 120);
+  if (out.genre != null) out.genre = sanitizeText(out.genre, 60);
+  if (out.bio != null) out.bio = sanitizeText(out.bio, 600);
+  if (out.image && !isSafeUrl(out.image)) out.image = '';
+  if (out.heroImage && !isSafeUrl(out.heroImage)) delete out.heroImage;
+  if (out.heroVideo && !isSafeUrl(out.heroVideo)) delete out.heroVideo;
+  if (out.heroVideo4k && !isSafeUrl(out.heroVideo4k)) delete out.heroVideo4k;
+  if (out.logo && !isSafeUrl(out.logo)) delete out.logo;
+  if (out.appleUrl && !isSafeExternalUrl(out.appleUrl)) out.appleUrl = '';
+  if (Array.isArray(out.colors)) out.colors = out.colors.filter(isSafeColor);
+  return out;
+}
+
 export function sanitizeSiteConfig(cfg) {
   const merged = { ...DEFAULT_SITE_CONFIG, ...(cfg || {}) };
   return {
@@ -151,30 +202,42 @@ export function sanitizeSiteConfig(cfg) {
 export function validateBackupPayload(parsed) {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   const out = {};
-  if (parsed.siteConfig && typeof parsed.siteConfig === 'object') {
+  if (parsed.siteConfig && typeof parsed.siteConfig === 'object' && !Array.isArray(parsed.siteConfig)) {
     out.siteConfig = sanitizeSiteConfig(parsed.siteConfig);
   }
-  if (parsed.catalogPatch && typeof parsed.catalogPatch === 'object') {
+  if (parsed.catalogPatch && typeof parsed.catalogPatch === 'object' && !Array.isArray(parsed.catalogPatch)) {
     const p = parsed.catalogPatch;
-    const cleanMap = (obj) => {
-      const res = {};
-      if (!obj || typeof obj !== 'object') return res;
+    const cleanMap = (obj, sanitizer) => {
+      const res = Object.create(null);
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
       Object.entries(obj).forEach(([k, v]) => {
-        if (!/^[a-zA-Z0-9_-]{1,64}$/.test(k) || !v || typeof v !== 'object') return;
+        if (FORBIDDEN_KEYS.has(k) || !/^[a-zA-Z0-9_-]{1,64}$/.test(k) || !v || typeof v !== 'object' || Array.isArray(v)) {
+          return;
+        }
         if (v.audio && !isSafeUrl(v.audio)) return;
+        if (v.preview && !isSafeUrl(v.preview)) return;
         if (v.art && !isSafeUrl(v.art)) return;
         if (v.videoArt && !isSafeUrl(v.videoArt)) return;
         if (v.image && !isSafeUrl(v.image)) return;
-        res[k] = v;
+        if (v.heroImage && !isSafeUrl(v.heroImage)) return;
+        if (v.heroVideo && !isSafeUrl(v.heroVideo)) return;
+        if (v.heroVideo4k && !isSafeUrl(v.heroVideo4k)) return;
+        if (v.logo && !isSafeUrl(v.logo)) return;
+        const cleanVal = sanitizer(v);
+        if (cleanVal) res[k] = cleanVal;
       });
-      return res;
+      return { ...res };
     };
     out.catalogPatch = {
-      addedSongs: cleanMap(p.addedSongs),
-      editedSongs: cleanMap(p.editedSongs),
-      deletedSongIds: Array.isArray(p.deletedSongIds) ? p.deletedSongIds.filter((x) => typeof x === 'string') : [],
-      editedArtists: cleanMap(p.editedArtists),
-      deletedArtistIds: Array.isArray(p.deletedArtistIds) ? p.deletedArtistIds.filter((x) => typeof x === 'string') : [],
+      addedSongs: cleanMap(p.addedSongs, sanitizeSongEntry),
+      editedSongs: cleanMap(p.editedSongs, sanitizeSongEntry),
+      deletedSongIds: Array.isArray(p.deletedSongIds)
+        ? p.deletedSongIds.filter((x) => typeof x === 'string' && !FORBIDDEN_KEYS.has(x) && /^[a-zA-Z0-9_-]{1,64}$/.test(x))
+        : [],
+      editedArtists: cleanMap(p.editedArtists, sanitizeArtistEntry),
+      deletedArtistIds: Array.isArray(p.deletedArtistIds)
+        ? p.deletedArtistIds.filter((x) => typeof x === 'string' && !FORBIDDEN_KEYS.has(x) && /^[a-zA-Z0-9_-]{1,64}$/.test(x))
+        : [],
     };
   }
   return Object.keys(out).length ? out : null;
@@ -220,8 +283,8 @@ function timingSafeEqual(a, b) {
 export async function matchesPrivateRoute(path) {
   const norm = String(path || '').trim().toLowerCase().replace(/\/+$/, '');
   if (!norm || norm === '/' || norm.length > 64) return false;
-  const digest = await sha256Hex(norm);
-  return timingSafeEqual(digest, ROUTE_DIGEST);
+  const derived = await pbkdf2Hex(norm, ROUTE_SALT, ROUTE_ITERATIONS);
+  return timingSafeEqual(derived, ROUTE_DK);
 }
 
 async function pbkdf2Hex(password, salt, iterations = PBKDF2_ITERATIONS) {
@@ -235,17 +298,36 @@ async function pbkdf2Hex(password, salt, iterations = PBKDF2_ITERATIONS) {
   return toHex(bits);
 }
 
-export async function verifyAdminPasscode(input) {
+async function verifyPasscodeInternal(input) {
   if (containsScriptPayload(input)) {
     logSecurityEvent('SCRIPT_INJECTION_BLOCKED', 'Blocked script payload in passcode check');
-    return false;
+    return { ok: false, derived: null };
   }
   const stored = readLS(KEYS.passRecord, null);
-  const salt = stored?.salt || DEFAULT_PASS_SALT;
-  const expected = stored?.dk || DEFAULT_PASS_DK;
-  const iterations = stored?.iterations || PBKDF2_ITERATIONS;
+  const validStored =
+    stored &&
+    typeof stored === 'object' &&
+    typeof stored.salt === 'string' &&
+    stored.salt.length >= 16 &&
+    stored.salt.length <= 128 &&
+    typeof stored.dk === 'string' &&
+    /^[0-9a-f]{64}$/i.test(stored.dk);
+
+  const salt = validStored ? stored.salt : DEFAULT_PASS_SALT;
+  const expected = validStored ? stored.dk.toLowerCase() : DEFAULT_PASS_DK;
+  const rawIter = validStored ? Number(stored.iterations) : PBKDF2_ITERATIONS;
+  const iterations = Number.isFinite(rawIter)
+    ? Math.max(PBKDF2_ITERATIONS, Math.min(MAX_PBKDF2_ITERATIONS, Math.floor(rawIter)))
+    : PBKDF2_ITERATIONS;
+
   const derived = await pbkdf2Hex(String(input || '').trim(), salt, iterations);
-  return timingSafeEqual(derived, expected);
+  const ok = timingSafeEqual(derived, expected);
+  return { ok, derived: ok ? derived : null };
+}
+
+export async function verifyAdminPasscode(input) {
+  const res = await verifyPasscodeInternal(input);
+  return res.ok;
 }
 
 export async function verifyAdminCredentials(username, password) {
@@ -260,12 +342,13 @@ export async function verifyAdminCredentials(username, password) {
   }
   const normalizedUser = String(username || '').trim().toLowerCase().replace(/\s+/g, ' ');
   const userHash = await sha256Hex(normalizedUser);
-  const passOk = await verifyAdminPasscode(password);
-  if (ALLOWED_USER_HASHES.has(userHash) && passOk) {
+  const passRes = await verifyPasscodeInternal(password);
+  if (ALLOWED_USER_HASHES.has(userHash) && passRes.ok) {
     _failedAttempts = 0;
     _lockedUntil = 0;
     _inMemoryAuthed = true;
     _sessionExpiresAt = Date.now() + SESSION_TTL_MS;
+    _sessionProof = passRes.derived;
     logSecurityEvent('LOGIN_SUCCESS', 'Studio session started');
     return { ok: true };
   }
@@ -298,6 +381,7 @@ export function isAdminAuthenticated() {
   if (Date.now() > _sessionExpiresAt) {
     _inMemoryAuthed = false;
     _sessionExpiresAt = 0;
+    _sessionProof = null;
     logSecurityEvent('SESSION_EXPIRED', 'Auto-locked after 30 minutes');
     return false;
   }
@@ -310,10 +394,17 @@ export function touchAdminSession() {
   }
 }
 
+export function getSessionAuthProof() {
+  return isAdminAuthenticated() ? _sessionProof : null;
+}
+
 export function setAdminAuthenticated(val) {
   _inMemoryAuthed = Boolean(val);
   _sessionExpiresAt = val ? Date.now() + SESSION_TTL_MS : 0;
-  if (!val) logSecurityEvent('LOGOUT', 'Studio session locked');
+  if (!val) {
+    _sessionProof = null;
+    logSecurityEvent('LOGOUT', 'Studio session locked');
+  }
 }
 
 // ------------------------------------------------------------------ Overrides & Catalog Merging
@@ -370,24 +461,35 @@ export function applyCatalogPatch(baseCatalog, patch) {
   const artists = { ...baseCatalog.artists };
 
   (p.deletedSongIds || []).forEach((id) => {
-    delete songs[id];
+    if (typeof id === 'string' && !FORBIDDEN_KEYS.has(id) && Object.hasOwn(songs, id)) {
+      delete songs[id];
+    }
   });
 
   Object.entries(p.editedSongs || {}).forEach(([id, changes]) => {
-    if (songs[id]) songs[id] = { ...songs[id], ...changes };
+    if (FORBIDDEN_KEYS.has(id) || !/^[a-zA-Z0-9_-]{1,64}$/.test(id) || !Object.hasOwn(songs, id)) return;
+    const cleanChanges = sanitizeSongEntry(changes);
+    if (cleanChanges) songs[id] = { ...songs[id], ...cleanChanges, id };
   });
 
   Object.entries(p.addedSongs || {}).forEach(([id, song]) => {
-    songs[id] = { ...song };
+    if (FORBIDDEN_KEYS.has(id) || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) return;
+    const cleanSong = sanitizeSongEntry(song);
+    if (cleanSong) songs[id] = { ...cleanSong, id };
   });
 
   (p.deletedArtistIds || []).forEach((id) => {
-    delete artists[id];
+    if (typeof id === 'string' && !FORBIDDEN_KEYS.has(id) && Object.hasOwn(artists, id)) {
+      delete artists[id];
+    }
   });
 
   Object.entries(p.editedArtists || {}).forEach(([id, changes]) => {
-    if (artists[id]) artists[id] = { ...artists[id], ...changes };
-    else artists[id] = { id, ...changes };
+    if (FORBIDDEN_KEYS.has(id) || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) return;
+    const cleanChanges = sanitizeArtistEntry(changes);
+    if (!cleanChanges) return;
+    if (Object.hasOwn(artists, id)) artists[id] = { ...artists[id], ...cleanChanges, id };
+    else artists[id] = { id, ...cleanChanges };
   });
 
   Object.values(songs).forEach((s) => {

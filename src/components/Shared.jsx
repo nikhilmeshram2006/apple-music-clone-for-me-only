@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { art, thumbImg } from '../api';
+import { isSafeColor } from '../utils/studioCore';
 import { fmt, useActiveSong, useLibrary, useLiked, usePlayerActions, useRouter } from '../store';
 import { Check, Explicit, Heart, Lyrics, More, Pause, Play, Plus, Queue, User } from './Icons';
 
@@ -197,7 +198,7 @@ export const ArtistBubble = memo(function ArtistBubble({ artist, size = 'md' }) 
     .join('');
   return (
     <div className={`artist-bubble ${size}`} onClick={() => { window.location.hash = `/artist/${artist.id}`; }}>
-      <div className="ab-img" style={{ background: artist.colors?.[0] || '#2c2c2e' }}>
+      <div className="ab-img" style={{ background: isSafeColor(artist.colors?.[0]) ? artist.colors[0] : '#2c2c2e' }}>
         {artist.image ? (
           <img
             src={thumbImg(artist.image)}

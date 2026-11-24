@@ -1,8 +1,30 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execFile } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const STUDIO_SAVE_PROOF = '1a2403ff3fc7e4daf5f4dbc2fde559519bf70b17a7560abf2bbc016ac64cb54f';
+const MAX_CACHE_ENTRIES = 500;
+const LOOPBACK_ADDRS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+function hasForbiddenKeys(val, depth = 0) {
+  if (!val || typeof val !== 'object' || depth > 8) return false;
+  for (const key of Object.keys(val)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return true;
+    if (hasForbiddenKeys(val[key], depth + 1)) return true;
+  }
+  return false;
+}
+
+function constantTimeHexEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function isAllowedHttpsHost(rawUrl, allowedHost) {
   try {
@@ -17,6 +39,13 @@ function createRateLimiter(maxReq, windowMs) {
   const hits = new Map();
   return (ip) => {
     const now = Date.now();
+    if (hits.size > 500) {
+      for (const [k, ts] of hits) {
+        const fresh = ts.filter((t) => now - t < windowMs);
+        if (fresh.length) hits.set(k, fresh);
+        else hits.delete(k);
+      }
+    }
     const list = (hits.get(ip) || []).filter((t) => now - t < windowMs);
     if (list.length >= maxReq) {
       hits.set(ip, list);
@@ -30,6 +59,12 @@ function createRateLimiter(maxReq, windowMs) {
 
 function fullAudioMiddleware() {
   const cache = new Map();
+  const setCache = (k, v) => {
+    if (cache.size >= MAX_CACHE_ENTRIES) {
+      cache.delete(cache.keys().next().value);
+    }
+    cache.set(k, v);
+  };
   const apiLimiter = createRateLimiter(60, 60_000);
   const adminLimiter = createRateLimiter(10, 60_000);
   return {
@@ -37,6 +72,11 @@ function fullAudioMiddleware() {
     configureServer(server) {
       // 1) Resolve full-length stream + animated cover for a single song
       server.middlewares.use('/api/resolve', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+          return;
+        }
         const ip = req.socket?.remoteAddress || 'local';
         if (!apiLimiter(ip)) {
           res.statusCode = 429;
@@ -121,7 +161,7 @@ for it in data.get("results", []):
           });
 
           const out = { audio: audioUrl, duration, videoArt, isFull: Boolean(audioUrl) };
-          cache.set(key, out);
+          setCache(key, out);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(out));
         } catch {
@@ -133,6 +173,11 @@ for it in data.get("results", []):
 
       // 2) Full Search endpoint (/api/search?q=...) returning decrypted 320kbps songs + artists + albums
       server.middlewares.use('/api/search', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+          return;
+        }
         const ip = req.socket?.remoteAddress || 'local';
         if (!apiLimiter(ip)) {
           res.statusCode = 429;
@@ -221,7 +266,7 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
               resolve({ songs: [], artists: [], albums: [] });
             });
           });
-          cache.set(key, out);
+          setCache(key, out);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(out));
         } catch {
@@ -231,9 +276,14 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
         }
       });
 
-      // 3) Local dev-only Studio save endpoint (never bundled or active in production)
+      // 3) Local dev-only Studio save endpoint (authenticated loopback + strict same-origin)
       server.middlewares.use('/__studio/save', (req, res) => {
-        const ip = req.socket?.remoteAddress || 'local';
+        const ip = req.socket?.remoteAddress || '';
+        if (!LOOPBACK_ADDRS.has(ip)) {
+          res.statusCode = 403;
+          res.end('Forbidden Remote Address');
+          return;
+        }
         if (!adminLimiter(ip)) {
           res.statusCode = 429;
           res.end('Too Many Requests');
@@ -244,12 +294,30 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
           res.end('Method Not Allowed');
           return;
         }
-        // CSRF / Origin protection: only allow same-origin localhost requests
-        const origin = req.headers.origin || '';
+        // Strict CSRF & Origin check (require exact matching Origin header)
+        const origin = req.headers.origin;
         const host = req.headers.host || '';
-        if (origin && !origin.startsWith(`http://${host}`) && !origin.startsWith(`https://${host}`)) {
+        const secFetch = req.headers['sec-fetch-site'];
+        if (!origin || (origin !== `http://${host}` && origin !== `https://${host}`)) {
           res.statusCode = 403;
           res.end('Forbidden Origin');
+          return;
+        }
+        if (secFetch && secFetch !== 'same-origin') {
+          res.statusCode = 403;
+          res.end('Forbidden Fetch Context');
+          return;
+        }
+        const contentType = String(req.headers['content-type'] || '');
+        if (!contentType.toLowerCase().startsWith('application/json')) {
+          res.statusCode = 415;
+          res.end('Unsupported Media Type');
+          return;
+        }
+        const proof = String(req.headers['x-studio-proof'] || '').trim().toLowerCase();
+        if (!constantTimeHexEqual(proof, STUDIO_SAVE_PROOF)) {
+          res.statusCode = 401;
+          res.end('Unauthorized');
           return;
         }
         let body = '';
@@ -269,6 +337,11 @@ print(json.dumps({"songs": songs, "artists": list(artists_map.values()), "albums
           if (bytes > MAX_BODY) return;
           try {
             const payload = JSON.parse(body || '{}');
+            if (hasForbiddenKeys(payload)) {
+              res.statusCode = 400;
+              res.end('Forbidden Keys');
+              return;
+            }
             const dataDir = path.resolve(process.cwd(), 'public', 'data');
             const lyrDir = path.join(dataDir, 'lyrics');
             fs.mkdirSync(lyrDir, { recursive: true });

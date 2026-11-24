@@ -149,6 +149,14 @@ function ToastBanner() {
   );
 }
 
+function safeDecode(s) {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return '';
+  }
+}
+
 function AmbientLayer({ path, isPrivateRoute }) {
   const catalog = useCatalog();
   const player = usePlayer();
@@ -160,14 +168,14 @@ function AmbientLayer({ path, isPrivateRoute }) {
     let title = `${brand} — Stream Full-Length Songs & Word-Synced Lyrics`;
     if (isPrivateRoute) title = `Private Console — ${brand}`;
     else if (path === '/search') title = `Browse & Search — ${brand}`;
-    else if (path.startsWith('/search/')) title = `Search “${decodeURIComponent(path.slice(8))}” — ${brand}`;
+    else if (path.startsWith('/search/')) title = `Search “${safeDecode(path.slice(8))}” — ${brand}`;
     else if (path === '/library') title = `Your Library — ${brand}`;
     else if (path === '/profile') title = `Listener Profile & Replay — ${brand}`;
     else if (path.startsWith('/artist/')) {
-      const a = catalog.artists[decodeURIComponent(path.slice(8))];
+      const a = catalog.artists[safeDecode(path.slice(8))];
       title = `${a?.name || 'Artist'} — ${brand}`;
     } else if (path.startsWith('/genre/')) {
-      const g = catalog.genres.find((x) => x.id === decodeURIComponent(path.slice(7)));
+      const g = catalog.genres.find((x) => x.id === safeDecode(path.slice(7)));
       title = `${g?.name || 'Genre'} — ${brand}`;
     }
     document.title = title;
@@ -207,6 +215,10 @@ function Shell() {
   const [routeState, setRouteState] = useState({ path: '', isPrivate: false });
 
   useEffect(() => {
+    if (isKnownPublicPath(path)) {
+      setRouteState({ path, isPrivate: false });
+      return;
+    }
     let alive = true;
     matchesPrivateRoute(path).then((ok) => {
       if (alive) setRouteState({ path, isPrivate: ok });
@@ -253,11 +265,11 @@ function Shell() {
       </Suspense>
     );
   } else if (path === '/') page = <HomePage />;
-  else if (path.startsWith('/artist/')) page = <ArtistPage id={decodeURIComponent(path.slice(8))} />;
-  else if (path.startsWith('/album/')) page = <AlbumPage id={decodeURIComponent(path.slice(7))} />;
-  else if (path.startsWith('/genre/')) page = <GenrePage id={decodeURIComponent(path.slice(7))} />;
-  else if (path.startsWith('/playlist/')) page = <PlaylistPage id={decodeURIComponent(path.slice(10))} />;
-  else if (path.startsWith('/search/')) page = <SearchPage initialQuery={decodeURIComponent(path.slice(8))} />;
+  else if (path.startsWith('/artist/')) page = <ArtistPage id={safeDecode(path.slice(8))} />;
+  else if (path.startsWith('/album/')) page = <AlbumPage id={safeDecode(path.slice(7))} />;
+  else if (path.startsWith('/genre/')) page = <GenrePage id={safeDecode(path.slice(7))} />;
+  else if (path.startsWith('/playlist/')) page = <PlaylistPage id={safeDecode(path.slice(10))} />;
+  else if (path.startsWith('/search/')) page = <SearchPage initialQuery={safeDecode(path.slice(8))} />;
   else if (path === '/search') page = <SearchPage />;
   else if (path === '/library') page = <LibraryPage />;
   else if (path === '/profile') page = <ProfilePage />;

@@ -1,4 +1,4 @@
-import { getLyricsOverride } from './utils/studioCore';
+import { getLyricsOverride, isSafeExternalUrl, stripScriptChars } from './utils/studioCore';
 
 // Runtime access to free, key-less services + live full-song & word-sync converter:
 //  - Curated catalog: 180+ full-length 320 kbps songs + pre-built word-by-word lyrics + animated Apple Music MP4 covers
@@ -49,24 +49,28 @@ export function normalizeTrack(r) {
   if (catalogByTitleArtist.has(exactKey)) return catalogByTitleArtist.get(exactKey);
   const baseKey = normKey(r.trackName, r.artistName);
   if (catalogByTitleArtist.has(baseKey)) return catalogByTitleArtist.get(baseKey);
+  const safeArtUrl = isSafeExternalUrl(r.artworkUrl100) ? toTpl(r.artworkUrl100) : '';
+  const safePreview = isSafeExternalUrl(r.previewUrl) ? r.previewUrl : '';
+  const safeAlbumView = isSafeExternalUrl(r.collectionViewUrl) ? r.collectionViewUrl : '';
+  const safeTrackView = isSafeExternalUrl(r.trackViewUrl) ? r.trackViewUrl : '';
   return {
     id,
-    title: r.trackName,
-    artist: r.artistName,
+    title: stripScriptChars(r.trackName || '', 160),
+    artist: stripScriptChars(r.artistName || '', 160),
     artistId: String(r.artistId),
-    album: r.collectionName || '',
+    album: stripScriptChars(r.collectionName || '', 160),
     albumId: String(r.collectionId || ''),
-    albumViewUrl: r.collectionViewUrl || '',
-    art: toTpl(r.artworkUrl100),
+    albumViewUrl: safeAlbumView,
+    art: safeArtUrl,
     videoArt: null,
     audio: null, // resolved on play via /api/resolve
-    preview: r.previewUrl,
+    preview: safePreview,
     isFull: true, // resolved on play
     duration: (r.trackTimeMillis || 180000) / 1000,
-    genre: r.primaryGenreName || '',
+    genre: stripScriptChars(r.primaryGenreName || '', 60),
     explicit: r.trackExplicitness === 'explicit',
     year: (r.releaseDate || '').slice(0, 4),
-    appleUrl: r.trackViewUrl,
+    appleUrl: safeTrackView,
     trackNumber: r.trackNumber,
     lyrics: 'remote',
     offset: 0,
@@ -105,13 +109,20 @@ async function getJSON(url) {
 
 let jsonpN = 0;
 function jsonp(url) {
-  if (typeof url !== 'string' || !url.startsWith('https://api.deezer.com/')) {
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return Promise.reject(new Error('Invalid JSONP URL'));
+  }
+  if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== 'api.deezer.com') {
     return Promise.reject(new Error('Blocked unsafe JSONP origin'));
   }
   if (memo.has(url)) return memo.get(url);
   const p = new Promise((resolve, reject) => {
     const cb = `__jp${Date.now()}_${jsonpN++}`;
     const s = document.createElement('script');
+    s.referrerPolicy = 'no-referrer';
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error('timeout'));

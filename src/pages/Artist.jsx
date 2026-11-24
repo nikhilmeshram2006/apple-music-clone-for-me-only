@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { art, artistImage, artistLookup } from '../api';
+import { safeCssUrl } from '../utils/studioCore';
 import { Back, Close, Lyrics, Pause, Play, Shuffle, Star } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
 import { useActiveSong, useCatalog, useLibrary, usePlayer, usePlayerActions, useRouter, useSiteConfig } from '../store';
@@ -298,7 +299,7 @@ export default function ArtistPage({ id }) {
       <div className="artist-hero cinematic" ref={heroWrapRef}>
         <div
           className={`ah-hero-photo ${videoReady ? 'under-video' : ''}`}
-          style={{ backgroundImage: heroBackdrop ? `url(${heroBackdrop})` : undefined }}
+          style={{ backgroundImage: safeCssUrl(heroBackdrop) }}
         />
         {(heroVideo || heroVideo4k) && (
           <video
@@ -505,9 +506,9 @@ export default function ArtistPage({ id }) {
 
       {/* ABOUT ARTIST MODAL (triggered by the 'i' button) */}
       {infoOpen && (
-        <div className="admin-modal-backdrop" onClick={() => setInfoOpen(false)}>
+        <div className="sp-modal-backdrop" onClick={() => setInfoOpen(false)}>
           <div className="artist-info-modal glass" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-head">
+            <div className="sp-modal-head">
               <div className="aim-head-left">
                 {portrait && <img src={portrait} alt={name} />}
                 <div>
@@ -521,16 +522,16 @@ export default function ArtistPage({ id }) {
             </div>
             <p className="aim-bio">{bioText}</p>
             <div className="aim-meta-grid">
-              <div className="admin-stat-card">
+              <div className="sp-stat-card">
                 <span>Genre</span>
                 <b>{genre}</b>
               </div>
-              <div className="admin-stat-card">
+              <div className="sp-stat-card">
                 <span>Catalog Tracks</span>
                 <b>{songs.length}</b>
               </div>
               {fans > 0 && (
-                <div className="admin-stat-card">
+                <div className="sp-stat-card">
                   <span>Listeners</span>
                   <b>{fans >= 1_000_000 ? `${(fans / 1_000_000).toFixed(1)}M` : `${Math.round(fans / 1000)}K`}</b>
                 </div>

@@ -7,6 +7,7 @@ import {
   downloadJSON,
   getLyricsOverride,
   getSecurityLogs,
+  getSessionAuthProof,
   isAdminAuthenticated,
   isSafeUrl,
   loadCatalogPatch,
@@ -350,7 +351,10 @@ export default function StudioPanel() {
     try {
       const res = await fetch('/__studio/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Studio-Proof': getSessionAuthProof() || '',
+        },
         body: JSON.stringify({
           catalog: stripInternalCatalogFields(catalog),
           siteConfig,
@@ -422,15 +426,27 @@ export default function StudioPanel() {
     lib.notify('Password updated (PBKDF2-SHA256, 210k iterations + random salt)', 'success');
   };
 
-  // ------------------------------------------------------------------ LOCKED SCREEN
+  // ------------------------------------------------------------------ FRAME-BUSTING & LOCKED SCREEN
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    return (
+      <div className="page sp-gate-page">
+        <div className="sp-gate-card glass">
+          <div className="sp-badge">SECURITY BLOCK</div>
+          <h1>Embedding Not Allowed</h1>
+          <p>Private Console cannot run inside an embedded frame.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!authed) {
     return (
-      <div className="page admin-gate-page">
-        <div className="admin-gate-card glass">
-          <div className="admin-badge">PRIVATE ACCESS</div>
+      <div className="page sp-gate-page">
+        <div className="sp-gate-card glass">
+          <div className="sp-badge">PRIVATE ACCESS</div>
           <h1>Studio Console</h1>
           <p>Sign in with your operator credentials to manage songs, artists, lyrics, and global website settings.</p>
-          <form onSubmit={handleLogin} className="admin-gate-form">
+          <form onSubmit={handleLogin} className="sp-gate-form">
             <input
               type="text"
               value={userInput}
@@ -468,12 +484,12 @@ export default function StudioPanel() {
               maxLength={128}
               required
             />
-            {authErr && <div className="admin-err">{authErr}</div>}
+            {authErr && <div className="sp-err">{authErr}</div>}
             <button type="submit" className="pill-btn primary">
               <Check size={16} /> Sign In
             </button>
           </form>
-          <button className="admin-back-link" onClick={() => navigate('/')}>
+          <button className="sp-back-link" onClick={() => navigate('/')}>
             ← Return to Music Player
           </button>
         </div>
@@ -488,13 +504,13 @@ export default function StudioPanel() {
   };
 
   return (
-    <div className="page admin-page">
-      <header className="admin-header">
+    <div className="page sp-page">
+      <header className="sp-header">
         <div>
           <div className="eyebrow">PRIVATE CONSOLE</div>
           <h1>Website & Catalog Control</h1>
         </div>
-        <div className="admin-header-actions">
+        <div className="sp-header-actions">
           <button className="pill-btn sm" onClick={() => navigate('/')}>
             View Website
           </button>
@@ -507,26 +523,26 @@ export default function StudioPanel() {
         </div>
       </header>
 
-      <div className="admin-stats">
-        <div className="admin-stat-card">
+      <div className="sp-stats">
+        <div className="sp-stat-card">
           <span>Total Songs</span>
           <b>{allSongs.length}</b>
         </div>
-        <div className="admin-stat-card">
+        <div className="sp-stat-card">
           <span>Total Artists</span>
           <b>{allArtists.length}</b>
         </div>
-        <div className="admin-stat-card">
+        <div className="sp-stat-card">
           <span>Word-Synced Lyrics</span>
           <b>{allSongs.filter((s) => s.lyrics === 'synced').length}</b>
         </div>
-        <div className="admin-stat-card">
+        <div className="sp-stat-card">
           <span>Local Console Edits</span>
           <b>{modifiedIds.size + (patch.deletedSongIds?.length || 0)}</b>
         </div>
       </div>
 
-      <div className="admin-tabs">
+      <div className="sp-tabs">
         <button className={tab === 'songs' ? 'on' : ''} onClick={() => setTab('songs')}>
           <Music size={16} /> Songs ({allSongs.length})
         </button>
@@ -546,9 +562,9 @@ export default function StudioPanel() {
 
       {/* ============================ TAB 1: SONGS */}
       {tab === 'songs' && (
-        <section className="admin-panel glass">
-          <div className="admin-toolbar">
-            <div className="admin-search-box">
+        <section className="sp-panel glass">
+          <div className="sp-toolbar">
+            <div className="sp-search-box">
               <Search size={15} />
               <input
                 value={songQuery}
@@ -564,15 +580,15 @@ export default function StudioPanel() {
                 </option>
               ))}
             </select>
-            <label className="admin-check">
+            <label className="sp-check">
               <input type="checkbox" checked={onlyModified} onChange={(e) => setOnlyModified(e.target.checked)} />
               <span>Edited / Added Only</span>
             </label>
           </div>
 
-          <div className="admin-table-wrap">
+          <div className="sp-table-wrap">
             {filteredSongs.slice(0, 120).map((s) => (
-              <div key={s.id} className="admin-song-row">
+              <div key={s.id} className="sp-song-row">
                 <img src={art(s.art, 120)} alt="" />
                 <div className="asr-info">
                   <div className="asr-title">
@@ -605,7 +621,7 @@ export default function StudioPanel() {
               </div>
             ))}
             {filteredSongs.length > 120 && (
-              <div className="admin-note">Showing first 120 of {filteredSongs.length} songs — use search to filter.</div>
+              <div className="sp-note">Showing first 120 of {filteredSongs.length} songs — use search to filter.</div>
             )}
           </div>
         </section>
@@ -613,9 +629,9 @@ export default function StudioPanel() {
 
       {/* ============================ TAB 2: ADD NEW SONG */}
       {tab === 'add' && (
-        <section className="admin-panel glass">
+        <section className="sp-panel glass">
           <h2>Auto-Fill Metadata from iTunes (Optional)</h2>
-          <form className="admin-itunes-bar" onSubmit={searchItunesForAdd}>
+          <form className="sp-itunes-bar" onSubmit={searchItunesForAdd}>
             <input
               value={itQuery}
               onChange={(e) => setItQuery(stripScriptChars(e.target.value, 120))}
@@ -626,9 +642,9 @@ export default function StudioPanel() {
             </button>
           </form>
           {itResults.length > 0 && (
-            <div className="admin-it-results">
+            <div className="sp-it-results">
               {itResults.map((r) => (
-                <div key={r.trackId} className="admin-it-item" onClick={() => applyItunesPick(r)}>
+                <div key={r.trackId} className="sp-it-item" onClick={() => applyItunesPick(r)}>
                   <img src={r.artworkUrl100} alt="" />
                   <div>
                     <b>{r.trackName}</b>
@@ -641,7 +657,7 @@ export default function StudioPanel() {
           )}
 
           <h2 style={{ marginTop: 20 }}>Song Details</h2>
-          <form className="admin-form-grid" onSubmit={handleAddSong}>
+          <form className="sp-form-grid" onSubmit={handleAddSong}>
             <label>
               Title *
               <input value={newSong.title} onChange={(e) => setNewSong({ ...newSong, title: stripScriptChars(e.target.value, 160) })} required />
@@ -694,7 +710,7 @@ export default function StudioPanel() {
               Synced LRC or Plain Lyrics (optional — paste <code>[00:12.34] Line</code> for word-by-word karaoke sync)
               <textarea rows={5} value={newLrc} onChange={(e) => setNewLrc(stripScriptChars(e.target.value, 25000))} placeholder="[00:05.00] First line of lyrics..." />
             </label>
-            <label className="admin-check">
+            <label className="sp-check">
               <input type="checkbox" checked={newSong.explicit} onChange={(e) => setNewSong({ ...newSong, explicit: e.target.checked })} />
               <span>Explicit Track</span>
             </label>
@@ -709,16 +725,16 @@ export default function StudioPanel() {
 
       {/* ============================ TAB 3: ARTISTS */}
       {tab === 'artists' && (
-        <section className="admin-panel glass">
-          <div className="admin-toolbar">
-            <div className="admin-search-box">
+        <section className="sp-panel glass">
+          <div className="sp-toolbar">
+            <div className="sp-search-box">
               <Search size={15} />
               <input value={artistQuery} onChange={(e) => setArtistQuery(stripScriptChars(e.target.value, 120))} placeholder="Search artists…" />
             </div>
           </div>
-          <div className="admin-table-wrap">
+          <div className="sp-table-wrap">
             {filteredArtists.slice(0, 100).map((a) => (
-              <div key={a.id} className="admin-song-row">
+              <div key={a.id} className="sp-song-row">
                 <img className="round" src={a.image || 'logo.jpg'} alt="" />
                 <div className="asr-info">
                   <div className="asr-title">{a.name}</div>
@@ -748,9 +764,9 @@ export default function StudioPanel() {
 
       {/* ============================ TAB 4: WEBSITE SETTINGS */}
       {tab === 'settings' && (
-        <section className="admin-panel glass">
+        <section className="sp-panel glass">
           <h2>Global Website Branding & Appearance</h2>
-          <div className="admin-form-grid">
+          <div className="sp-form-grid">
             <label>
               Website Brand Name
               <input
@@ -825,7 +841,7 @@ export default function StudioPanel() {
           </div>
 
           <h2 style={{ marginTop: 24 }}>Feature Switches</h2>
-          <div className="admin-toggle-grid">
+          <div className="sp-toggle-grid">
             {[
               ['enableFluidBg', 'Animated Fluid Background'],
               ['enableMotionArt', 'Animated Motion Album Covers'],
@@ -833,7 +849,7 @@ export default function StudioPanel() {
               ['enableSplash', 'Opening Splash Screen'],
               ['maintenanceMode', 'Maintenance Mode (blocks public visitors, keeps Private Console open)'],
             ].map(([key, label]) => (
-              <label key={key} className="admin-check card">
+              <label key={key} className="sp-check card">
                 <input
                   type="checkbox"
                   checked={Boolean(siteConfig[key])}
@@ -845,7 +861,7 @@ export default function StudioPanel() {
           </div>
 
           {siteConfig.maintenanceMode && (
-            <div className="admin-form-grid" style={{ marginTop: 14 }}>
+            <div className="sp-form-grid" style={{ marginTop: 14 }}>
               <label className="span-2">
                 Maintenance Message
                 <input
@@ -857,7 +873,7 @@ export default function StudioPanel() {
           )}
 
           <h2 style={{ marginTop: 24 }}>Visible Genres</h2>
-          <div className="admin-genre-pills">
+          <div className="sp-genre-pills">
             {(catalog.genres || []).map((g) => {
               const hidden = (siteConfig.hiddenGenres || []).includes(g.id);
               return (
@@ -890,14 +906,14 @@ export default function StudioPanel() {
 
       {/* ============================ TAB 5: EXPORT & SECURITY */}
       {tab === 'system' && (
-        <section className="admin-panel glass">
+        <section className="sp-panel glass">
           <h2>Export & Deploy Changes</h2>
-          <p className="admin-note">
+          <p className="sp-note">
             All changes you make apply immediately in your browser. To publish them for every visitor on static hosting,
             click <b>Save to Project Files</b> (when running locally) or export the JSON files below and place them in{' '}
             <code>public/data/</code>.
           </p>
-          <div className="admin-export-row">
+          <div className="sp-export-row">
             <button
               className="pill-btn primary"
               onClick={() => downloadJSON('catalog.json', stripInternalCatalogFields(catalog))}
@@ -926,7 +942,7 @@ export default function StudioPanel() {
           </div>
 
           <h2 style={{ marginTop: 28 }}>Change Console Passcode</h2>
-          <form className="admin-form-grid" onSubmit={handleChangePasscode} style={{ maxWidth: 520 }}>
+          <form className="sp-form-grid" onSubmit={handleChangePasscode} style={{ maxWidth: 520 }}>
             <label>
               Current Passcode
               <input
@@ -953,12 +969,12 @@ export default function StudioPanel() {
           </form>
 
           <h2 style={{ marginTop: 28 }}>Security Activity Monitor ({secLogs.length})</h2>
-          <div className="admin-table-wrap" style={{ maxHeight: 220, marginBottom: 12 }}>
+          <div className="sp-table-wrap" style={{ maxHeight: 220, marginBottom: 12 }}>
             {secLogs.length === 0 ? (
-              <div className="admin-note">No security events recorded yet.</div>
+              <div className="sp-note">No security events recorded yet.</div>
             ) : (
               secLogs.map((l, idx) => (
-                <div key={idx} className="admin-song-row">
+                <div key={idx} className="sp-song-row">
                   <div className="asr-info">
                     <div className="asr-title">
                       <code>{l.event}</code>
@@ -1003,13 +1019,13 @@ export default function StudioPanel() {
 
       {/* ============================ SONG EDITOR MODAL */}
       {editingSong && (
-        <div className="admin-modal-backdrop" onClick={() => setEditingSong(null)}>
-          <div className="admin-modal glass" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-head">
+        <div className="sp-modal-backdrop" onClick={() => setEditingSong(null)}>
+          <div className="sp-modal glass" onClick={(e) => e.stopPropagation()}>
+            <div className="sp-modal-head">
               <h2>Edit Song</h2>
               <button className="icon-btn" onClick={() => setEditingSong(null)}><Close size={18} /></button>
             </div>
-            <form className="admin-form-grid" onSubmit={handleSaveEditedSong}>
+            <form className="sp-form-grid" onSubmit={handleSaveEditedSong}>
               <label>
                 Title
                 <input value={editingSong.title} onChange={(e) => setEditingSong({ ...editingSong, title: stripScriptChars(e.target.value, 160) })} required />
@@ -1062,11 +1078,11 @@ export default function StudioPanel() {
                 Override Lyrics (paste LRC <code>[mm:ss.xx]</code> for word-by-word sync, or plain text)
                 <textarea rows={4} value={editingLrc} onChange={(e) => setEditingLrc(stripScriptChars(e.target.value, 25000))} placeholder="Leave empty to keep existing lyrics" />
               </label>
-              <label className="admin-check">
+              <label className="sp-check">
                 <input type="checkbox" checked={Boolean(editingSong.explicit)} onChange={(e) => setEditingSong({ ...editingSong, explicit: e.target.checked })} />
                 <span>Explicit</span>
               </label>
-              <div className="span-2 admin-modal-foot">
+              <div className="span-2 sp-modal-foot">
                 <button type="button" className="pill-btn" onClick={() => setEditingSong(null)}>Cancel</button>
                 <button type="submit" className="pill-btn primary"><Check size={15} /> Save Changes</button>
               </div>
@@ -1077,13 +1093,13 @@ export default function StudioPanel() {
 
       {/* ============================ ARTIST EDITOR MODAL */}
       {editingArtist && (
-        <div className="admin-modal-backdrop" onClick={() => setEditingArtist(null)}>
-          <div className="admin-modal glass" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-head">
+        <div className="sp-modal-backdrop" onClick={() => setEditingArtist(null)}>
+          <div className="sp-modal glass" onClick={(e) => e.stopPropagation()}>
+            <div className="sp-modal-head">
               <h2>Edit Artist</h2>
               <button className="icon-btn" onClick={() => setEditingArtist(null)}><Close size={18} /></button>
             </div>
-            <form className="admin-form-grid" onSubmit={handleSaveArtist}>
+            <form className="sp-form-grid" onSubmit={handleSaveArtist}>
               <label>
                 Artist Name
                 <input value={editingArtist.name} onChange={(e) => setEditingArtist({ ...editingArtist, name: stripScriptChars(e.target.value, 120) })} required />
@@ -1100,7 +1116,7 @@ export default function StudioPanel() {
                 Fans Count (affects Top Artists order)
                 <input type="number" value={editingArtist.fans || 0} onChange={(e) => setEditingArtist({ ...editingArtist, fans: e.target.value })} />
               </label>
-              <div className="span-2 admin-modal-foot">
+              <div className="span-2 sp-modal-foot">
                 <button type="button" className="pill-btn" onClick={() => setEditingArtist(null)}>Cancel</button>
                 <button type="submit" className="pill-btn primary"><Check size={15} /> Save Artist</button>
               </div>
