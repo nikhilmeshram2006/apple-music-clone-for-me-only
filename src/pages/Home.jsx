@@ -1,9 +1,45 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { art } from '../api';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
 import { ChevronRight, Lyrics, Play, Shuffle } from '../components/Icons';
 import FluidBackground from '../components/FluidBackground';
-import { useCatalog, useLibrary, usePlayerActions, useRouter } from '../store';
+import { useCatalog, useLibrary, usePlayerActions, useRouter, useSiteConfig } from '../store';
+import { useIsMobilePerf } from '../utils/perf';
+import { isSafeColor } from '../utils/studioCore';
+
+function LazyHeroVideo({ src, poster }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          if (v.paused) v.play().catch(() => {});
+        } else if (!v.paused) {
+          v.pause();
+        }
+      },
+      { rootMargin: '120px' }
+    );
+    io.observe(v);
+    return () => io.disconnect();
+  }, [src]);
+
+  return (
+    <video
+      ref={ref}
+      className="hc-bg-video"
+      src={src}
+      poster={poster}
+      preload="metadata"
+      autoPlay
+      loop
+      muted
+      playsInline
+    />
+  );
+}
 
 const SHELF_DEFS = [
   { id: 'pop', title: 'Today’s Pop Superstars', sub: 'Full-length chart toppers with animated album covers & word-by-word lyrics' },
@@ -22,6 +58,8 @@ export default function HomePage() {
   const player = usePlayerActions();
   const lib = useLibrary();
   const { navigate } = useRouter();
+  const siteConfig = useSiteConfig();
+  const mobile = useIsMobilePerf();
   const [genre, setGenre] = useState('all');
 
   const allSongs = useMemo(() => Object.values(catalog.songs), [catalog]);
@@ -73,9 +111,10 @@ export default function HomePage() {
   );
 
   const syncedSongs = useMemo(() => allSongs.filter((s) => s.lyrics === 'synced'), [allSongs]);
-  const topArtists = useMemo(() => allArtists.slice(0, 18), [allArtists]);
-  const quickSingAlong = useMemo(() => syncedSongs.slice(0, 12), [syncedSongs]);
-  const recentSlice = useMemo(() => lib.recent.slice(0, 10), [lib.recent]);
+  const topArtists = useMemo(() => allArtists.slice(0, mobile ? 12 : 18), [allArtists, mobile]);
+  const quickSingAlong = useMemo(() => syncedSongs.slice(0, mobile ? 8 : 12), [syncedSongs, mobile]);
+  const recentSlice = useMemo(() => lib.recent.slice(0, mobile ? 8 : 10), [lib.recent, mobile]);
+  const shelfLimit = mobile ? 10 : 16;
 
   const shelves = useMemo(
     () =>
@@ -90,9 +129,9 @@ export default function HomePage() {
     <div className="page home-page">
       <header className="page-header">
         <div className="ph-brand-row" onClick={() => navigate('/')} style={{ cursor: 'pointer' }} title="Go to Home">
-          <img className="ph-logo-img" src="logo.jpg" alt="AUREL" decoding="async" />
+          <img className="ph-logo-img" src={siteConfig?.logoUrl || 'logo.png'} alt={siteConfig?.siteName || 'AUREL'} decoding="async" />
           <div>
-            <div className="eyebrow">AUREL</div>
+            <div className="eyebrow">{siteConfig?.siteName || 'AUREL'}</div>
             <h1>Home</h1>
           </div>
         </div>
@@ -129,16 +168,17 @@ export default function HomePage() {
                 <div className="hc-sub">{s.title} — {s.artist}</div>
               </div>
               <div className="hc-visual">
-                {s.videoArt ? (
-                  <video
-                    className="hc-bg-video"
-                    src={s.videoArt}
-                    poster={art(s.art, 600)}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
+                {mobile ? (
+                  <div
+                    className="hc-mobile-bg"
+                    style={{
+                      background: `linear-gradient(135deg, ${(isSafeColor(s.colors?.[0]) ? s.colors[0] : '#4c1d95')}66, ${(isSafeColor(s.colors?.[1]) ? s.colors[1] : '#1e1b4b')}88)`,
+                    }}
+                  >
+                    <img src={artist?.image || art(s.art, 300)} alt="" loading="lazy" decoding="async" />
+                  </div>
+                ) : s.videoArt ? (
+                  <LazyHeroVideo src={s.videoArt} poster={art(s.art, 600)} />
                 ) : (
                   <FluidBackground src={artist?.image || art(s.art, 300)} speed={0.9} dim={0.22} />
                 )}
@@ -263,7 +303,7 @@ export default function HomePage() {
             </button>
           </div>
           <div className="card-row">
-            {shelf.list.map((s) => (
+            {shelf.list.slice(0, shelfLimit).map((s) => (
               <SongCard key={s.id} song={s} list={shelf.list} />
             ))}
           </div>

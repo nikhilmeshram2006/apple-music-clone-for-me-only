@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { audio, useLibrary, usePlayerActions } from '../store';
+import { useIsMobilePerf } from '../utils/perf';
 
 // precise playback clock (timeupdate only fires ~4x/s; we extrapolate between reads)
 let lastA = -1;
@@ -57,6 +58,7 @@ const Word = memo(function Word({ w, glow, store, k }) {
 export default function LyricsView({ data, loading, song, visible = true }) {
   const { seek } = usePlayerActions();
   const { settings } = useLibrary();
+  const mobilePerf = useIsMobilePerf();
   const lines = data?.synced ? data.lines : null;
   const offset = data?.offset || 0;
   const wrapRef = useRef(null);
@@ -69,9 +71,10 @@ export default function LyricsView({ data, loading, song, visible = true }) {
   const activeRef = useRef(-1);
   const lastFill = useRef(new Map());
 
-  // glow (per-letter) for sustained words
+  // glow (per-letter) for sustained words — skip per-letter spans on mobile for 60fps
   const glowSet = useMemo(() => {
     const s = new Set();
+    if (mobilePerf) return s;
     lines?.forEach((l, li) =>
       l.words?.forEach((w, wi) => {
         const len = w.w.trim().length;
@@ -79,7 +82,7 @@ export default function LyricsView({ data, loading, song, visible = true }) {
       })
     );
     return s;
-  }, [lines]);
+  }, [lines, mobilePerf]);
 
   // Precompute CJK flags once per song instead of per-render regex
   const cjkFlags = useMemo(
@@ -290,7 +293,7 @@ export default function LyricsView({ data, loading, song, visible = true }) {
         const style = {
           transform: `translate3d(0, ${-scrollY}px, 0)`,
           transitionDelay: `${delay}ms, ${delay}ms, 0ms, 0ms`,
-          '--blur': manual || farOffscreen || i === active ? '0px' : `${Math.min(dist, 5) * 0.55}px`,
+          '--blur': manual || farOffscreen || i === active || mobilePerf ? '0px' : `${Math.min(dist, 5) * 0.55}px`,
           visibility: farOffscreen ? 'hidden' : 'visible',
         };
         if (l.inst) {

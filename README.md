@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/logo.jpg" width="84" alt="AUREL" />
+  <img src="public/logo.png" width="110" alt="AUREL" />
 </p>
 
 <h1 align="center">AUREL</h1>
@@ -26,7 +26,7 @@
 - **4K Artist Profiles & Visuals** — Canvas fluid mesh backgrounds sampled from cover art, **27 looping motion album covers**, and full-bleed artist profiles across **151 curated artists** (**62** 4K/2K hero motion videos, **149** 4K artist photos, and **61** 2K transparent wordmark logos).
 - **Catalog** — **337 pre-indexed tracks** across 10 genres plus live catalog search.
 - **Library** — Local persistence for favorites, custom playlists, followed artists, and listening history.
-- **Mobile / PWA** — Responsive layout with installable web app manifest and TV/device-adaptive hero video playback.
+- **Mobile 60fps Performance & PWA** — GPU-composited Liquid-Aura rings (`transform` keyframes), adaptive zero-video mobile hero cards, low-overhead ambient gradients, `content-visibility` shelf virtualization, mobile-optimized word-synced lyrics, installable PWA manifest, and device-adaptive 4K/1080p artist hero playback.
 
 ### Catalog Breakdown (`337 Songs` · `151 Artists`)
 

@@ -1,26 +1,27 @@
 import { useEffect, useRef } from 'react';
+import { isMobilePerf, prefersReducedMotion } from '../utils/perf';
 
 // Living-artwork ambient fluid background: several copies of a pre-softened
-// sprite slowly orbit/rotate on a tiny 56x56 canvas, upscaled by the GPU.
-// Automatically pauses its rAF loop when scrolled off-screen or hidden.
+// sprite slowly orbit/rotate on a tiny 48x48 canvas, upscaled by the GPU.
+// Automatically pauses its rAF loop when scrolled off-screen, hidden, or paused on mobile.
 
-const W = 56;
-const H = 56;
+const W = 48;
+const H = 48;
 
 function bakeSprite(img) {
   try {
     const tmp = document.createElement('canvas');
-    tmp.width = 18;
-    tmp.height = 18;
+    tmp.width = 16;
+    tmp.height = 16;
     const tctx = tmp.getContext('2d');
-    tctx.drawImage(img, 0, 0, 18, 18);
+    tctx.drawImage(img, 0, 0, 16, 16);
 
     const sp = document.createElement('canvas');
     sp.width = W;
     sp.height = H;
     const sctx = sp.getContext('2d');
     if (typeof sctx.filter === 'string') {
-      sctx.filter = 'blur(4px) saturate(1.85) contrast(1.1)';
+      sctx.filter = 'blur(6px) saturate(1.75) contrast(1.08)';
     }
     sctx.drawImage(tmp, -4, -4, W + 8, H + 8);
     return sp;
@@ -80,10 +81,12 @@ function removeTicker(fn) {
   }
 }
 
-function scene(ctx, img, t) {
+const MOBILE_BLOBS = blobs.slice(0, 3);
+
+function scene(ctx, img, t, activeBlobs) {
   ctx.globalAlpha = 1;
   ctx.drawImage(img, -W * 0.1, -H * 0.1, W * 1.2, H * 1.2);
-  for (const b of blobs) {
+  for (const b of activeBlobs) {
     const cx = (b.x + Math.sin(t * b.f + b.x * 9) * b.ox) * W;
     const cy = (b.y + Math.cos(t * b.f * 1.3 + b.y * 7) * b.oy) * H;
     const size = b.s * W * (1 + Math.sin(t * b.f * 0.7) * 0.08);
@@ -98,10 +101,11 @@ function scene(ctx, img, t) {
 export default function FluidBackground({ src, className = '', speed = 1, dim = 0.3, paused = false, active = true }) {
   const wrapRef = useRef(null);
   const ref = useRef(null);
-  const state = useRef({ cur: null, prev: null, fade: 1, speed, paused, active, inView: true, startLoop: null });
+  const state = useRef({ cur: null, prev: null, fade: 1, speed, paused, active, inView: true, startLoop: null, mobile: isMobilePerf() });
   state.current.speed = speed;
   state.current.paused = paused;
   state.current.active = active;
+  state.current.mobile = isMobilePerf();
 
   useEffect(() => {
     let alive = true;
@@ -140,26 +144,33 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
     let t = Math.random() * 100;
     let last = performance.now();
     let acc = 0;
+    const reduced = prefersReducedMotion();
 
     const renderFrame = (now) => {
       const s = state.current;
       if (!s.cur) return;
+      const activeBlobs = s.mobile ? MOBILE_BLOBS : blobs;
       const fade = s.fadeStart ? Math.min(1, (now - s.fadeStart) / 1200) : 1;
       if (s.prev && fade < 1) {
-        scene(ctx, s.prev, t);
-        scene(octx, s.cur, t);
+        scene(ctx, s.prev, t, activeBlobs);
+        scene(octx, s.cur, t, activeBlobs);
         ctx.globalAlpha = fade;
         ctx.drawImage(off, 0, 0);
         ctx.globalAlpha = 1;
       } else {
         s.prev = null;
-        scene(ctx, s.cur, t);
+        scene(ctx, s.cur, t, activeBlobs);
       }
     };
 
     const shouldRun = () => {
       const s = state.current;
-      return Boolean(s.active && s.inView && !document.hidden && s.cur);
+      if (reduced || !s.active || !s.inView || document.hidden || !s.cur) return false;
+      if (s.mobile && s.paused) {
+        const fading = s.prev && s.fadeStart && (performance.now() - s.fadeStart) < 1250;
+        return Boolean(fading);
+      }
+      return true;
     };
 
     const loop = (now) => {
@@ -171,7 +182,7 @@ export default function FluidBackground({ src, className = '', speed = 1, dim = 
       last = now;
       acc += dt;
       const s = state.current;
-      const interval = s.paused ? 1 / 12 : 1 / 22;
+      const interval = s.mobile ? (s.paused ? 1 / 6 : 1 / 10) : (s.paused ? 1 / 10 : 1 / 20);
       if (acc < interval) return true;
       t += acc * (s.paused ? 0.22 : 1) * s.speed;
       acc = 0;

@@ -3,12 +3,14 @@ import { art, setCatalogRef } from './api';
 import {
   applyCatalogPatch,
   DEFAULT_SITE_CONFIG,
+  isSafeColor,
   loadCatalogPatch,
   loadSiteConfigOverride,
   matchesPrivateRoute,
   saveCatalogPatch,
   saveSiteConfigOverride,
 } from './utils/studioCore';
+import { useIsMobilePerf } from './utils/perf';
 import BottomDock, { TopBar } from './components/BottomDock';
 import FluidBackground from './components/FluidBackground';
 import { Check, Close, Home, Library, Search, User } from './components/Icons';
@@ -50,7 +52,7 @@ function Sidebar({ mobileOpen, onCloseMobile }) {
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sb-top-row">
           <div className="sb-brand" onClick={() => nav('/')}>
-            <img className="sb-logo-img" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+            <img className="sb-logo-img" src={siteConfig.logoUrl || 'logo.png'} alt={siteConfig.siteName} />
             <span>{siteConfig.siteName}</span>
           </div>
           <button className="sb-close-mobile icon-btn" onClick={onCloseMobile} aria-label="Close menu">
@@ -99,7 +101,7 @@ function SiteFooter() {
       <div className="sf-grid">
         <div className="sf-brand-col">
           <button className="top-logo-btn" onClick={() => navigate('/')}>
-            <img src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+            <img src={siteConfig.logoUrl || 'logo.png'} alt={siteConfig.siteName} />
             <span>{siteConfig.siteName}</span>
           </button>
           <p className="sf-desc">{siteConfig.footerDesc}</p>
@@ -161,6 +163,7 @@ function AmbientLayer({ path, isPrivateRoute }) {
   const catalog = useCatalog();
   const player = usePlayer();
   const siteConfig = useSiteConfig() || DEFAULT_SITE_CONFIG;
+  const mobile = useIsMobilePerf();
 
   useEffect(() => {
     if (player.current && player.playing) return;
@@ -182,6 +185,20 @@ function AmbientLayer({ path, isPrivateRoute }) {
   }, [path, isPrivateRoute, catalog, player.current, player.playing, siteConfig.siteName]);
 
   if (!player.current || siteConfig.enableFluidBg === false) return null;
+  if (mobile) {
+    const c1 = isSafeColor(player.current.colors?.[0]) ? player.current.colors[0] : '#6b21a8';
+    const c2 = isSafeColor(player.current.colors?.[1]) ? player.current.colors[1] : '#1e1b4b';
+    return (
+      <div
+        className="ambient-bg ambient-static"
+        style={{
+          opacity: siteConfig.fluidIntensity ?? 0.75,
+          background: `radial-gradient(circle at 20% 18%, ${c1}38 0%, transparent 56%), radial-gradient(circle at 82% 76%, ${c2}38 0%, transparent 60%)`,
+        }}
+        aria-hidden="true"
+      />
+    );
+  }
   return (
     <div className="ambient-bg" style={{ opacity: siteConfig.fluidIntensity ?? 0.75 }}>
       <FluidBackground
@@ -249,7 +266,7 @@ function Shell() {
     return (
       <div className="maintenance-screen">
         <div className="nf-card glass">
-          <img className="nf-logo" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+          <img className="nf-logo" src={siteConfig.logoUrl || 'logo.png'} alt={siteConfig.siteName} />
           <h1>{siteConfig.siteName}</h1>
           <p>{siteConfig.maintenanceMessage || 'We are updating the music catalog. Please check back shortly.'}</p>
         </div>
@@ -397,7 +414,7 @@ export default function App() {
     return (
       <div className="splash-opening">
         <div className="splash-glow" />
-        <img className="splash-logo-img" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+        <img className="splash-logo-img" src={siteConfig.logoUrl || 'logo.png'} alt={siteConfig.siteName} />
         <div className="splash-title">{siteConfig.siteName}</div>
         <div className="splash-sub">{siteConfig.tagline}</div>
       </div>
@@ -412,7 +429,7 @@ export default function App() {
             {siteConfig.enableSplash !== false && !introDone && (
               <div className="splash-opening fade-out" onClick={() => setIntroDone(true)}>
                 <div className="splash-glow" />
-                <img className="splash-logo-img" src={siteConfig.logoUrl || 'logo.jpg'} alt={siteConfig.siteName} />
+                <img className="splash-logo-img" src={siteConfig.logoUrl || 'logo.png'} alt={siteConfig.siteName} />
                 <div className="splash-title">{siteConfig.siteName}</div>
                 <div className="splash-sub">{siteConfig.tagline}</div>
               </div>

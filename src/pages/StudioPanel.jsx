@@ -735,7 +735,7 @@ export default function StudioPanel() {
           <div className="sp-table-wrap">
             {filteredArtists.slice(0, 100).map((a) => (
               <div key={a.id} className="sp-song-row">
-                <img className="round" src={a.image || 'logo.jpg'} alt="" />
+                <img className="round" src={a.image || 'logo.png'} alt="" />
                 <div className="asr-info">
                   <div className="asr-title">{a.name}</div>
                   <div className="asr-sub">

@@ -1,13 +1,14 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { art, searchAll } from '../api';
 import { stripScriptChars } from '../utils/studioCore';
-import { useCatalog, usePlayer, usePlayerActions, usePlayerTime, useRouter } from '../store';
+import { useCatalog, usePlayer, usePlayerActions, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import { Close, Home, Library, Lyrics, Next, Pause, Play, Search, User } from './Icons';
 
 export function TopBar({ onOpenMobileMenu }) {
   const { path, navigate } = useRouter();
   const catalog = useCatalog();
   const player = usePlayerActions();
+  const siteConfig = useSiteConfig();
   const [q, setQ] = useState('');
   const deferredQ = useDeferredValue(q);
   const [open, setOpen] = useState(false);
@@ -99,8 +100,8 @@ export function TopBar({ onOpenMobileMenu }) {
           </svg>
         </button>
         <button className="top-logo-btn" onClick={() => navigate('/')} title="Go to Home">
-          <img src="logo.jpg" alt="AUREL" decoding="async" />
-          <span>AUREL</span>
+          <img src={siteConfig?.logoUrl || 'logo.png'} alt={siteConfig?.siteName || 'AUREL'} decoding="async" />
+          <span>{siteConfig?.siteName || 'AUREL'}</span>
         </button>
       </div>
 

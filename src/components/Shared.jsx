@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { art, thumbImg } from '../api';
+import { useIsMobilePerf } from '../utils/perf';
 import { isSafeColor } from '../utils/studioCore';
 import { fmt, useActiveSong, useLibrary, useLiked, usePlayerActions, useRouter } from '../store';
 import { Check, Explicit, Heart, Lyrics, More, Pause, Play, Plus, Queue, User } from './Icons';
@@ -136,17 +137,18 @@ export const SongRow = memo(function SongRow({ song, list, index, showArt = true
 
 export const SongCard = memo(function SongCard({ song, list, subtitle }) {
   const { currentId, playing, playSong, toggle } = useActiveSong();
+  const mobile = useIsMobilePerf();
   const active = currentId === song.id;
   const [hover, setHover] = useState(false);
   return (
     <div
       className="song-card"
-      onMouseEnter={() => song.videoArt && setHover(true)}
-      onMouseLeave={() => song.videoArt && setHover(false)}
+      onMouseEnter={() => !mobile && song.videoArt && setHover(true)}
+      onMouseLeave={() => !mobile && song.videoArt && setHover(false)}
       onClick={() => (active ? toggle() : playSong(song, list))}
     >
       <div className="sc-art">
-        {song.videoArt && (hover || active) ? (
+        {!mobile && song.videoArt && (hover || active) ? (
           <video
             className="sc-video"
             src={song.videoArt}

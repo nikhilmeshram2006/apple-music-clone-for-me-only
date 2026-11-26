@@ -26,7 +26,7 @@ export const DEFAULT_SITE_CONFIG = {
   tagline: 'Lossless · Word-Synced Lyrics · Animated Motion',
   footerDesc:
     'Personal full-length 320 kbps streaming experience with word-by-word synchronized karaoke lyrics and animated motion artwork.',
-  logoUrl: 'logo.jpg',
+  logoUrl: 'logo.png',
   accentColor: '#fa2d48',
   accentColor2: '#ff375f',
   bgColor: '#000000',
@@ -177,11 +177,13 @@ export function sanitizeSiteConfig(cfg) {
   const merged = { ...DEFAULT_SITE_CONFIG, ...(cfg || {}) };
   const rawName = sanitizeText(merged.siteName, 60);
   const migratedName = !rawName || /^apple\s*music$/i.test(rawName) ? DEFAULT_SITE_CONFIG.siteName : rawName;
+  const rawLogo = isSafeUrl(merged.logoUrl) ? sanitizeText(merged.logoUrl, 300) : '';
+  const migratedLogo = !rawLogo || /^\/?logo\.jpg$/i.test(rawLogo) ? DEFAULT_SITE_CONFIG.logoUrl : rawLogo;
   return {
     siteName: migratedName,
     tagline: sanitizeText(merged.tagline, 140),
     footerDesc: sanitizeText(merged.footerDesc, 300),
-    logoUrl: isSafeUrl(merged.logoUrl) ? sanitizeText(merged.logoUrl, 300) || 'logo.jpg' : 'logo.jpg',
+    logoUrl: migratedLogo,
     accentColor: isSafeColor(merged.accentColor) ? merged.accentColor : DEFAULT_SITE_CONFIG.accentColor,
     accentColor2: isSafeColor(merged.accentColor2) ? merged.accentColor2 : DEFAULT_SITE_CONFIG.accentColor2,
     bgColor: isSafeColor(merged.bgColor) ? merged.bgColor : DEFAULT_SITE_CONFIG.bgColor,

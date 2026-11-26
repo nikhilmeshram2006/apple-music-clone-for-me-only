@@ -720,7 +720,7 @@ export function NotFoundPage({ message = "The page you’re looking for doesn’
   return (
     <div className="page not-found-page">
       <div className="nf-card glass">
-        <img src="logo.jpg" alt="AUREL" className="nf-logo" />
+        <img src="logo.png" alt="AUREL" className="nf-logo" />
         <div className="eyebrow">404 · PAGE NOT FOUND</div>
         <h1>Can’t Find That Beat</h1>
         <p>{message}</p>

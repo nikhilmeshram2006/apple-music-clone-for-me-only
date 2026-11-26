@@ -3,6 +3,7 @@ import { art, artistImage, artistLookup } from '../api';
 import { safeCssUrl } from '../utils/studioCore';
 import { Back, Close, Lyrics, Pause, Play, Shuffle, Star } from '../components/Icons';
 import { ArtistBubble, SongCard, SongRow } from '../components/Shared';
+import { useIsMobilePerf } from '../utils/perf';
 import { useActiveSong, useCatalog, useLibrary, usePlayer, usePlayerActions, useRouter, useSiteConfig } from '../store';
 
 function shouldUse4KVideo() {
@@ -161,6 +162,7 @@ export default function ArtistPage({ id }) {
   const player = usePlayerActions();
   const { nowOpen } = usePlayer();
   const siteConfig = useSiteConfig();
+  const mobile = useIsMobilePerf();
   const { currentId, playing, toggle, playSong } = useActiveSong();
   const lib = useLibrary();
   const { navigate } = useRouter();
@@ -412,7 +414,7 @@ export default function ArtistPage({ id }) {
                   if (essential.lyrics === 'synced') player.setNowOpen(true);
                 }}
               >
-                {essential.videoArt && siteConfig?.enableMotionArt !== false ? (
+                {!mobile && essential.videoArt && siteConfig?.enableMotionArt !== false ? (
                   <video
                     className="fr-video"
                     src={essential.videoArt}
