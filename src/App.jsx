@@ -164,7 +164,7 @@ function AmbientLayer({ path, isPrivateRoute }) {
 
   useEffect(() => {
     if (player.current && player.playing) return;
-    const brand = siteConfig.siteName || 'Apple Music';
+    const brand = siteConfig.siteName || 'AUREL';
     let title = `${brand} — Stream Full-Length Songs & Word-Synced Lyrics`;
     if (isPrivateRoute) title = `Private Console — ${brand}`;
     else if (path === '/search') title = `Browse & Search — ${brand}`;

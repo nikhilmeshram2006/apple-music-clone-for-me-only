@@ -99,8 +99,8 @@ export function TopBar({ onOpenMobileMenu }) {
           </svg>
         </button>
         <button className="top-logo-btn" onClick={() => navigate('/')} title="Go to Home">
-          <img src="logo.jpg" alt="Apple Music" decoding="async" />
-          <span>apple music</span>
+          <img src="logo.jpg" alt="AUREL" decoding="async" />
+          <span>AUREL</span>
         </button>
       </div>
 
@@ -116,7 +116,7 @@ export function TopBar({ onOpenMobileMenu }) {
               setOpen(true);
             }}
             placeholder="Search songs, artists (SZA, YOASOBI, Indila…)"
-            aria-label="Search Apple Music"
+            aria-label="Search AUREL"
           />
           {q ? (
             <button

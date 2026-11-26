@@ -30,7 +30,7 @@ const BIO_BLURBS = {
   Latin: 'Infectious global rhythms, urbano heat, and chart-topping Latin artistry.',
 };
 
-// Bespoke custom wordmark styles for artists without an official Apple Music PNG logo
+// Bespoke custom wordmark styles for artists without an official transparent PNG logo
 const CUSTOM_WORDMARK_MAP = {
   'lana del rey': 'wm-crimson-serif',
   'cigarettes after sex': 'wm-crimson-serif',
@@ -295,7 +295,7 @@ export default function ArtistPage({ id }) {
 
   return (
     <div className="page artist-page">
-      {/* FULL-BLEED APPLE MUSIC CINEMATIC ARTIST HERO */}
+      {/* FULL-BLEED CINEMATIC ARTIST HERO */}
       <div className="artist-hero cinematic" ref={heroWrapRef}>
         <div
           className={`ah-hero-photo ${videoReady ? 'under-video' : ''}`}
@@ -360,7 +360,7 @@ export default function ArtistPage({ id }) {
           </button>
         </div>
 
-        {/* CENTERED CUSTOM WORDMARK + 3 ICONIC APPLE MUSIC CIRCLE BUTTONS */}
+        {/* CENTERED CUSTOM WORDMARK + ACTION TRIO CIRCLE BUTTONS */}
         <div className="ah-center-stage">
           <ArtistWordmark
             name={name}

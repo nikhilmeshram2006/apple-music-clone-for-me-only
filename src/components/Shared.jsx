@@ -163,7 +163,7 @@ export const SongCard = memo(function SongCard({ song, list, subtitle }) {
           {active && playing ? <Pause size={18} /> : <Play size={18} />}
         </button>
         {song.videoArt && (
-          <span className="sc-motion-pill" title="Official Apple Music Animated Cover">Motion</span>
+          <span className="sc-motion-pill" title="Animated Motion Cover">Motion</span>
         )}
         {song.lyrics === 'synced' && (
           <span className="sc-badge" title="Word-synced lyrics">

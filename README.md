@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="public/logo.jpg" width="84" alt="Music" />
+  <img src="public/logo.jpg" width="84" alt="AUREL" />
 </p>
 
-<h1 align="center">apple music</h1>
+<h1 align="center">AUREL</h1>
 
 <p align="center">
-  Web client for streaming 337 full-length songs with word-synchronized lyrics, motion album artwork, and 4K artist profiles.
+  Web music player for streaming 337 full-length songs with a frosted Liquid-Aura player UI, word-synchronized lyrics, motion album artwork, and 4K artist profiles.
   <br />
   <a href="https://applemusic.antideploy.app/">Live App</a>
   &nbsp;·&nbsp;
@@ -16,13 +16,14 @@
 
 ## Overview
 
-A personal web player modeled after Apple Music. Built with React and Vite, backed by a Python catalog pipeline that pairs full-length AAC streams and bundled local `.m4a` audio with time-aligned Apple Music Sing lyrics from LRCLIB, looping motion album covers, and 4K artist hero pages.
+**AUREL** is a personal full-length music streaming web player built with React and Vite, paired with a Python catalog pipeline that resolves 320 kbps AAC streams and bundled local `.m4a` tracks, time-aligned word-by-word lyrics from LRCLIB, looping motion covers, and 4K/2K cinematic artist profiles.
 
 ### Features
 
+- **Frosted Liquid-Aura Player UI** — Switchable dual-mode artwork stage (**Liquid Aura rings** ↔ **Rounded Square cover**), frosted glass track info pill, chunky capsule scrubber with inline elapsed/remaining timestamps, and circular frosted glass transport controls.
 - **Audio** — **337 full-length tracks** (including 44 bundled local AAC `.m4a` tracks and 320 kbps AAC streams) with MediaSession API support and keyboard shortcuts.
-- **Apple Music Sing Lyrics** — **236 synced-lyric tracks** featuring luminous word-by-word and per-letter fill, syllable weighting across Latin, CJK, Hangul, and Devanagari scripts, and click-to-seek lines.
-- **Cinematic Visuals** — Canvas fluid mesh backgrounds sampled from cover art, **27 looping motion album covers**, and full-bleed artist profiles across **151 curated artists** (**62** 4K/2K hero motion videos, **149** 4K artist photos, and **61** 2K transparent wordmark logos).
+- **Word-Synced Lyrics** — **236 synced-lyric tracks** featuring luminous word-by-word and per-letter fill, syllable weighting across Latin, CJK, Hangul, and Devanagari scripts, and click-to-seek lines.
+- **4K Artist Profiles & Visuals** — Canvas fluid mesh backgrounds sampled from cover art, **27 looping motion album covers**, and full-bleed artist profiles across **151 curated artists** (**62** 4K/2K hero motion videos, **149** 4K artist photos, and **61** 2K transparent wordmark logos).
 - **Catalog** — **337 pre-indexed tracks** across 10 genres plus live catalog search.
 - **Library** — Local persistence for favorites, custom playlists, followed artists, and listening history.
 - **Mobile / PWA** — Responsive layout with installable web app manifest and TV/device-adaptive hero video playback.
@@ -40,13 +41,16 @@ A personal web player modeled after Apple Music. Built with React and Vite, back
 ## Screenshots
 
 ### Home & Curated Genre Shelves
-![Home Page — Hero Cards and Genre Sidebar](screenshots/home.png)
+![AUREL Home Page — Hero Cards and Genre Sidebar](screenshots/home.png)
 
-### Now Playing & Apple Music Sing Synced Lyrics
-![Now Playing — Animated Cover Art and Word-Synced Lyrics](screenshots/now-playing-lyrics.png)
+### Frosted Liquid-Aura Music Player
+![AUREL Player — Iridescent Liquid-Aura Rings, Track Pill, and Capsule Scrubber](screenshots/player-aura.png)
+
+### Now Playing & Word-Synced Lyrics
+![AUREL Now Playing — Liquid-Aura Player and Synced Lyrics](screenshots/now-playing-lyrics.png)
 
 ### Cinematic 4K Artist Profile
-![Artist Profile — Full-Bleed Hero Banner and Wordmark Logo](screenshots/artist-page.png)
+![AUREL Artist Profile — Full-Bleed 4K Hero Video and Wordmark Logo](screenshots/artist-page.png)
 
 ## Development
 
@@ -68,7 +72,7 @@ npm run catalog
 npm run build
 ```
 
-Static output is written to `docs/` for GitHub Pages deployment.
+Static output is written to `docs/` for deployment.
 
 ## License
 

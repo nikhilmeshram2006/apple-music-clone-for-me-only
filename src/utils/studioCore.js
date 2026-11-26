@@ -22,7 +22,7 @@ const SESSION_TTL_MS = 30 * 60 * 1000; // 30-minute session expiry
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export const DEFAULT_SITE_CONFIG = {
-  siteName: 'apple music',
+  siteName: 'AUREL',
   tagline: 'Lossless · Word-Synced Lyrics · Animated Motion',
   footerDesc:
     'Personal full-length 320 kbps streaming experience with word-by-word synchronized karaoke lyrics and animated motion artwork.',
@@ -175,8 +175,10 @@ export function sanitizeArtistEntry(a) {
 
 export function sanitizeSiteConfig(cfg) {
   const merged = { ...DEFAULT_SITE_CONFIG, ...(cfg || {}) };
+  const rawName = sanitizeText(merged.siteName, 60);
+  const migratedName = !rawName || /^apple\s*music$/i.test(rawName) ? DEFAULT_SITE_CONFIG.siteName : rawName;
   return {
-    siteName: sanitizeText(merged.siteName, 60) || DEFAULT_SITE_CONFIG.siteName,
+    siteName: migratedName,
     tagline: sanitizeText(merged.tagline, 140),
     footerDesc: sanitizeText(merged.footerDesc, 300),
     logoUrl: isSafeUrl(merged.logoUrl) ? sanitizeText(merged.logoUrl, 300) || 'logo.jpg' : 'logo.jpg',

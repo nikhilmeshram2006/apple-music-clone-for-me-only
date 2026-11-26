@@ -61,7 +61,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 }
 .sb-brand {
   display: flex; align-items: center; gap: 11px;
-  font-size: 21px; font-weight: 800; letter-spacing: -0.02em;
+  font-size: 20px; font-weight: 800; letter-spacing: 0.08em;
   padding: 2px 10px; cursor: pointer;
 }
 .sb-logo-img {
@@ -97,7 +97,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 }
 .splash-title {
   position: relative; z-index: 2;
-  font-size: 26px; font-weight: 800; letter-spacing: -0.02em;
+  font-size: 26px; font-weight: 800; letter-spacing: 0.14em;
 }
 .splash-sub {
   position: relative; z-index: 2;
@@ -406,7 +406,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   box-shadow: 0 8px 18px rgba(0,0,0,0.45);
 }
 
-/* ============================== ARTIST PAGE (APPLE MUSIC FULL-BLEED CINEMATIC HERO) */
+/* ============================== ARTIST PAGE (AUREL FULL-BLEED CINEMATIC HERO) */
 .artist-page { padding-top: 0; }
 .artist-hero.cinematic {
   position: relative;
@@ -573,7 +573,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   letter-spacing: -0.035em;
 }
 
-/* Iconic Apple Music Centered Action Trio: (i)  (Play)  (★) */
+/* Centered Action Trio: (i)  (Play)  (★) */
 .ah-action-trio {
   display: inline-flex;
   align-items: center;
@@ -789,7 +789,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   box-shadow: 0 4px 14px rgba(0, 180, 255, 0.35);
 }
 .top-logo-btn span {
-  font-size: 14px; font-weight: 700; letter-spacing: 0.01em; color: rgba(255, 255, 255, 0.88);
+  font-size: 14px; font-weight: 800; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.9);
 }
 .top-bar-spacer { width: 120px; pointer-events: none; }
 
@@ -834,23 +834,28 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   width: 100%;
   position: relative; overflow: hidden;
   display: flex; align-items: center; gap: 10px;
-  padding: 6px 10px 6px 7px; border-radius: 14px;
-  cursor: pointer; transition: transform .2s var(--ease);
+  padding: 6px 10px 6px 8px; border-radius: 999px;
+  background: rgba(28, 30, 38, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer; transition: transform .2s var(--ease), background .2s var(--ease);
 }
-.mini-player:hover { transform: translateY(-1px); }
+.mini-player:hover { transform: translateY(-1px); background: rgba(36, 38, 48, 0.82); }
 .mp-progress {
   position: absolute; left: 0; bottom: 0; height: 2px;
-  background: linear-gradient(90deg, var(--accent), #ff8da1);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.7), var(--accent2));
   transition: width .15s linear;
 }
-.mp-art { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.mp-art { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.16); }
 .mp-meta { flex: 1; min-width: 0; }
 .mp-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-title svg { color: var(--accent2); flex-shrink: 0; }
 .mp-sub { font-size: 11.5px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-btns { display: flex; align-items: center; gap: 2px; }
-.mp-btn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; }
-.mp-btn:hover { background: rgba(255,255,255,0.12); }
+.mp-btns { display: flex; align-items: center; gap: 4px; }
+.mp-btn {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.mp-btn:hover { background: rgba(255, 255, 255, 0.18); }
 
 /* small minimal transparent bottom navigation bar */
 .bottom-dock-minimal {
@@ -896,10 +901,10 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   font-size: 13px; font-weight: 700; text-align: center;
 }
 
-/* ============================== FULL-SCREEN NOW PLAYING + WORD-SYNCED LYRICS */
+/* ============================== FULL-SCREEN NOW PLAYING (FROSTED LIQUID-AURA + WORD-SYNCED LYRICS) */
 .np-overlay {
   position: fixed; inset: 0; z-index: 200;
-  background: #0b0b0e;
+  background: radial-gradient(circle at 50% 24%, #1d2028 0%, #101218 68%, #090a0e 100%);
   transform: translate3d(0, 104%, 0);
   visibility: hidden;
   pointer-events: none;
@@ -919,7 +924,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   position: relative; z-index: 2; height: 100%;
   display: flex; flex-direction: column;
   max-width: 1320px; width: 100%; margin: 0 auto;
-  padding: 12px 38px 26px;
+  padding: 10px 38px 24px;
 }
 .np-dismiss {
   align-self: center; display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -929,11 +934,11 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 
 .np-body {
   flex: 1; min-height: 0;
-  display: grid; grid-template-columns: minmax(320px, 440px) 1fr;
+  display: grid; grid-template-columns: minmax(320px, 410px) 1fr;
   gap: 54px; align-items: center;
   transition: gap 0.52s var(--spring);
 }
-.np-overlay.panel-art .np-body { grid-template-columns: minmax(340px, 500px) 0fr; gap: 0; justify-content: center; }
+.np-overlay.panel-art .np-body { grid-template-columns: minmax(340px, 420px) 0fr; gap: 0; justify-content: center; }
 .np-overlay.panel-art .np-right {
   opacity: 0;
   pointer-events: none;
@@ -942,21 +947,21 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 }
 
 .np-left {
-  display: flex; flex-direction: column; gap: 16px;
-  max-width: 440px; width: 100%; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 15px;
+  max-width: 410px; width: 100%; margin: 0 auto;
   min-height: 0;
   transition: transform 0.52s var(--spring), gap 0.48s var(--spring);
 }
 .np-compact-head { display: none; }
 
+/* Dual-Mode Artwork Stage: Liquid Aura Rings ('aura') vs Rounded Square ('card') */
 .np-art-stage {
   position: relative;
-  width: min(100%, 340px);
-  height: min(36vh, 340px);
+  width: min(100%, 336px);
+  height: min(35vh, 336px);
   flex-shrink: 0;
-  margin: 0 auto 6px;
+  margin: 0 auto 4px;
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden; border-radius: 16px;
   cursor: pointer;
   transform-origin: center bottom;
   transition:
@@ -966,6 +971,126 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
     margin 0.54s var(--spring),
     opacity 0.38s var(--ease);
 }
+.np-aura-shell {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+.np-art-frame {
+  position: relative; z-index: 3;
+  width: 100%; height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.58);
+  transition:
+    width 0.55s var(--spring),
+    height 0.55s var(--spring),
+    border-radius 0.55s var(--spring),
+    transform 0.55s var(--spring),
+    box-shadow 0.55s var(--spring),
+    border-color 0.4s var(--ease);
+}
+.np-art-frame img,
+.np-art-frame .np-video-art {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.np-art-stage.mode-card.paused .np-art-frame {
+  transform: scale(0.91);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.44);
+}
+
+/* Concentric Liquid-Glass Iridescent Squircle Aura */
+.np-aura-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.84);
+  transition: opacity 0.45s var(--ease), transform 0.55s var(--spring);
+}
+.np-aura-ring::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from 35deg,
+    rgba(255, 224, 178, 0.72),
+    color-mix(in srgb, var(--aura-c1, #e4be8b) 58%, transparent) 18%,
+    rgba(255, 255, 255, 0.12) 34%,
+    color-mix(in srgb, var(--aura-c2, #7692d8) 65%, transparent) 55%,
+    rgba(182, 212, 255, 0.72) 72%,
+    rgba(255, 255, 255, 0.14) 88%,
+    rgba(255, 224, 178, 0.72)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.np-art-stage.mode-aura .np-art-frame {
+  width: 70%;
+  height: 70%;
+  border-radius: 31% 29% 32% 28% / 29% 32% 28% 31%;
+  border: 1.5px solid rgba(255, 255, 255, 0.36);
+  box-shadow:
+    0 0 24px rgba(255, 255, 255, 0.16),
+    -10px 4px 28px color-mix(in srgb, var(--aura-c1, #e4be8b) 34%, transparent),
+    10px -4px 28px color-mix(in srgb, var(--aura-c2, #7692d8) 32%, transparent),
+    0 18px 44px rgba(0, 0, 0, 0.56);
+}
+.np-art-stage.mode-aura.paused .np-art-frame {
+  transform: scale(0.93);
+}
+.np-art-stage.mode-aura .np-aura-r1 {
+  z-index: 2;
+  width: 82%; height: 82%;
+  border-radius: 38% 42% 36% 40% / 40% 36% 42% 38%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 68%, transparent);
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.12), 0 0 22px rgba(255, 255, 255, 0.08);
+  opacity: 0.96;
+  transform: scale(1);
+  animation: auraSpinA 18s linear infinite, auraBreath 5.2s ease-in-out infinite alternate;
+}
+.np-art-stage.mode-aura .np-aura-r2 {
+  z-index: 1;
+  width: 93%; height: 93%;
+  border-radius: 42% 37% 43% 38% / 37% 43% 38% 42%;
+  background: radial-gradient(circle at 70% 65%, color-mix(in srgb, var(--aura-c2, #7692d8) 14%, transparent), transparent 72%);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--aura-c1, #e4be8b) 18%, transparent);
+  opacity: 0.82;
+  transform: scale(1);
+  animation: auraSpinB 24s linear infinite reverse, auraBreath 6.6s ease-in-out infinite alternate-reverse;
+}
+.np-art-stage.mode-aura .np-aura-r3 {
+  z-index: 0;
+  width: 102%; height: 102%;
+  border-radius: 46% 40% 44% 41% / 41% 45% 39% 46%;
+  box-shadow: 0 0 36px color-mix(in srgb, var(--aura-c2, #7692d8) 20%, transparent);
+  opacity: 0.56;
+  transform: scale(1);
+  animation: auraSpinA 30s linear infinite;
+}
+.np-art-stage.paused .np-aura-ring,
+.np-overlay:not(.open) .np-aura-ring {
+  animation-play-state: paused !important;
+}
+@keyframes auraSpinA {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes auraSpinB {
+  from { transform: rotate(360deg) scale(1); }
+  to { transform: rotate(0deg) scale(1.02); }
+}
+@keyframes auraBreath {
+  from { border-radius: 38% 42% 36% 40% / 40% 36% 42% 38%; }
+  to { border-radius: 43% 36% 41% 38% / 36% 42% 37% 43%; }
+}
+
 .np-overlay.anim-going-down .np-art-stage {
   animation: npArtGoDown 0.54s var(--spring);
 }
@@ -989,98 +1114,159 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   0% { transform: translate3d(0, 38px, 0) scale(0.82); opacity: 0.7; }
   100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
 }
-.np-art-stage img,
-.np-art-stage .np-video-art {
-  width: 100%; height: 100%;
-  object-fit: cover; border-radius: 16px;
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.62);
-  transition: transform .55s var(--spring), box-shadow .55s var(--spring);
-}
-.np-art-stage.paused img,
-.np-art-stage.paused .np-video-art {
-  transform: scale(0.86);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
-}
 
-.np-meta-row {
-  position: relative; z-index: 2;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding-top: 4px;
+/* Frosted Track Info Pill */
+.np-info-pill {
+  position: relative; z-index: 6;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(26px) saturate(140%);
+  -webkit-backdrop-filter: blur(26px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 26px rgba(0, 0, 0, 0.22);
 }
-.np-titles { min-width: 0; }
-.np-title { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; display: flex; align-items: center; gap: 7px; }
+.np-pill-center {
+  min-width: 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.np-title {
+  max-width: 100%;
+  font-size: 15.5px; font-weight: 700; letter-spacing: -0.015em;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
 .np-title span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.np-artist { font-size: 17px; color: rgba(255,255,255,0.72); font-weight: 500; cursor: pointer; margin-top: 2px; }
+.np-artist {
+  max-width: 100%;
+  font-size: 12.5px; color: rgba(255, 255, 255, 0.64); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer; margin-top: 1px;
+}
 .np-artist:hover { color: #fff; text-decoration: underline; }
-.np-meta-actions { display: flex; gap: 8px; }
 .np-circle {
   width: 34px; height: 34px; border-radius: 50%;
-  background: rgba(255,255,255,0.12); display: grid; place-items: center;
-}
-.np-circle.on { color: var(--accent2); background: rgba(250,45,72,0.25); }
-
-/* scrubber */
-.scrubber { user-select: none; }
-.scrub-track {
-  height: 7px; border-radius: 99px;
-  background: rgba(255,255,255,0.22);
-  overflow: hidden; cursor: pointer;
-  transition: height .18s var(--ease);
-}
-.scrubber:hover .scrub-track, .scrubber.dragging .scrub-track { height: 12px; }
-.scrub-fill { height: 100%; background: rgba(255,255,255,0.92); border-radius: 99px; }
-.scrub-times {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-top: 7px; font-size: 11.5px; font-weight: 600;
-  color: rgba(255,255,255,0.58); font-variant-numeric: tabular-nums;
-}
-.scrub-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 6px;
-  background: rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.78);
-  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
-}
-
-/* transport */
-.np-transport { display: flex; justify-content: space-between; align-items: center; padding: 2px 8px; }
-.np-t-play {
-  width: 66px; height: 66px; border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
   display: grid; place-items: center;
-  transition: transform .15s, background .15s;
+  transition: background 0.18s var(--ease), color 0.18s var(--ease), transform 0.15s var(--ease);
 }
-.np-t-play:hover { background: rgba(255,255,255,0.1); transform: scale(1.06); }
-.np-t-Play:active, .np-t-skip:active { transform: scale(0.9); }
-.np-t-skip { width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; }
-.np-t-skip:hover { background: rgba(255,255,255,0.1); }
-.np-t-aux {
-  width: 38px; height: 38px; border-radius: 10px;
-  display: grid; place-items: center; color: rgba(255,255,255,0.55);
-}
-.np-t-aux.on { color: #fff; background: rgba(255,255,255,0.18); }
+.np-circle:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.np-circle.on { color: var(--accent2); background: rgba(250, 45, 72, 0.22); }
 
-/* volume */
-.np-volume { display: flex; align-items: center; gap: 11px; color: rgba(255,255,255,0.58); }
+/* Chunky Frosted Capsule Scrubber */
+.scrubber { user-select: none; }
+.scrub-pill {
+  position: relative;
+  height: 38px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease), transform 0.18s var(--ease);
+}
+.scrubber:hover .scrub-pill, .scrubber.dragging .scrub-pill {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.scrub-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0.34));
+  border-radius: 999px;
+}
+.scrub-pill-times {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  font-size: 11.5px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.scrub-lossless {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+/* Circular Frosted Glass Transport */
+.np-transport {
+  display: flex; justify-content: center; align-items: center;
+  gap: 18px; padding: 4px 4px;
+}
+.np-t-play {
+  width: 70px; height: 70px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.21);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 12px 30px rgba(0, 0, 0, 0.28);
+  transition: transform .16s var(--spring), background .18s var(--ease);
+}
+.np-t-play:hover { background: rgba(255, 255, 255, 0.28); transform: scale(1.05); }
+.np-t-play:active, .np-t-skip:active { transform: scale(0.91); }
+.np-t-skip {
+  width: 54px; height: 54px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 8px 20px rgba(0, 0, 0, 0.2);
+  transition: transform .16s var(--spring), background .18s var(--ease);
+}
+.np-t-skip:hover { background: rgba(255, 255, 255, 0.18); transform: scale(1.04); }
+.np-t-aux {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: grid; place-items: center; color: rgba(255, 255, 255, 0.46);
+  transition: background .16s, color .16s;
+}
+.np-t-aux:hover { color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.08); }
+.np-t-aux.on { color: #fff; background: rgba(255, 255, 255, 0.18); }
+
+/* volume (desktop only) */
+.np-volume { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.52); padding: 0 4px; }
 .np-volume input[type='range'] {
   flex: 1; -webkit-appearance: none; appearance: none;
-  height: 6px; border-radius: 99px; cursor: pointer;
-  background: linear-gradient(90deg, rgba(255,255,255,0.9) var(--vp, 80%), rgba(255,255,255,0.22) var(--vp, 80%));
+  height: 5px; border-radius: 99px; cursor: pointer;
+  background: linear-gradient(90deg, rgba(255,255,255,0.82) var(--vp, 80%), rgba(255,255,255,0.18) var(--vp, 80%));
 }
 .np-volume input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none; width: 0; height: 0;
 }
-.np-volume:hover input[type='range'] { height: 10px; }
+.np-volume:hover input[type='range'] { height: 8px; }
+.np-vol-ext {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: rgba(255, 255, 255, 0.56);
+  transition: background 0.15s, color 0.15s;
+}
+.np-vol-ext:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
 
 .np-SwitchRow { display: flex; justify-content: space-around; align-items: center; padding-top: 2px; }
 .np-pill {
-  width: 44px; height: 36px; border-radius: 10px;
-  display: grid; place-items: center; color: rgba(255,255,255,0.65);
+  width: 44px; height: 38px; border-radius: 999px;
+  display: grid; place-items: center; color: rgba(255,255,255,0.6);
   transition: transform 0.22s var(--spring), background 0.2s var(--ease), color 0.2s var(--ease);
 }
+.np-pill:hover { color: rgba(255,255,255,0.9); }
 .np-pill:active { transform: scale(0.86); }
-.np-pill.on { background: rgba(255,255,255,0.22); color: #fff; transform: translateY(-1px); }
+.np-pill.on { background: rgba(255,255,255,0.16); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
 
-/* ============================== APPLE MUSIC KARAOKE LYRICS */
+/* ============================== WORD-SYNCED LYRICS */
 .np-right {
   height: min(76vh, 690px); min-height: 0; position: relative;
   transition:
@@ -1153,7 +1339,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 .lyrics-wrap.manual .ll-line { opacity: 0.68; filter: none; }
 .lyrics-wrap.manual .ll-line.active { opacity: 1; }
 
-/* Apple Music word-by-word wipe fill + luminous vocal bloom */
+/* Word-by-word wipe fill + luminous vocal bloom */
 .lw {
   --p: 0;
   --g: 0;
@@ -1183,7 +1369,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   transform: none;
 }
 
-/* Apple Music Sing sustained-word per-letter wave lift & intense glow */
+/* Sustained-word per-letter wave lift & intense glow */
 .ll-line.active .lw.glow .ll {
   --p: 0;
   --g: 0;
@@ -1394,7 +1580,7 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   }
   .np-left {
     order: 2;
-    gap: 16px;
+    gap: 14px;
     justify-content: center;
     height: auto;
     max-width: 390px;
@@ -1404,19 +1590,19 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
     gap: 8px;
   }
   .np-art-stage {
-    width: min(84vw, 345px);
-    height: min(84vw, 345px);
-    max-height: 43vh;
+    width: min(82vw, 330px);
+    height: min(82vw, 330px);
+    max-height: 41vh;
     aspect-ratio: 1;
-    margin: 0 auto 10px;
+    margin: 0 auto 6px;
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     transform-origin: center bottom;
   }
   .np-overlay.panel-art .np-art-stage {
-    width: min(84vw, 345px);
-    height: min(84vw, 345px);
-    max-height: 43vh;
+    width: min(82vw, 330px);
+    height: min(82vw, 330px);
+    max-height: 41vh;
   }
   .np-overlay.panel-lyrics .np-art-stage,
   .np-overlay.panel-queue .np-art-stage {
@@ -1428,8 +1614,8 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
     transform: translate3d(0, 145px, 0) scale(0.18);
     animation: none;
   }
-  .np-meta-row {
-    max-height: 76px;
+  .np-info-pill {
+    max-height: 58px;
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     transition:
@@ -1439,28 +1625,28 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
       padding 0.48s var(--spring),
       margin 0.48s var(--spring);
   }
-  .np-overlay.panel-lyrics .np-meta-row,
-  .np-overlay.panel-queue .np-meta-row {
+  .np-overlay.panel-lyrics .np-info-pill,
+  .np-overlay.panel-queue .np-info-pill {
     max-height: 0;
     padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
     margin: 0;
     opacity: 0;
     overflow: hidden;
     pointer-events: none;
     transform: translate3d(0, 56px, 0) scale(0.9);
   }
-  .np-meta-actions { gap: 10px; }
   .np-circle {
-    width: 38px; height: 38px;
-    background: rgba(255, 255, 255, 0.16);
-    color: rgba(255, 255, 255, 0.88);
+    width: 34px; height: 34px;
+    color: rgba(255, 255, 255, 0.86);
   }
   .np-t-aux { display: none; }
   .np-volume { display: none; }
   .np-transport {
     justify-content: center;
-    gap: 44px;
-    padding: 6px 0;
+    gap: 26px;
+    padding: 4px 0;
   }
   .np-SwitchRow {
     justify-content: space-between;
@@ -1469,8 +1655,14 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   .np-compact-head {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     max-height: 0;
+    padding: 0 10px 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.11);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: 0 solid rgba(255, 255, 255, 0.16);
     opacity: 0;
     overflow: hidden;
     pointer-events: none;
@@ -1479,19 +1671,22 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
       max-height 0.52s var(--spring),
       opacity 0.36s var(--ease),
       transform 0.52s var(--spring),
+      padding 0.48s var(--spring),
       margin 0.52s var(--spring);
   }
   .np-overlay.panel-lyrics .np-compact-head,
   .np-overlay.panel-queue .np-compact-head {
-    max-height: 62px;
+    max-height: 58px;
+    padding: 5px 10px 5px 6px;
+    border-width: 1px;
     margin-bottom: 2px;
     opacity: 1;
     pointer-events: auto;
     transform: translate3d(0, 0, 0) scale(1);
   }
   .np-compact-head img {
-    width: 48px; height: 48px; border-radius: 9px; cursor: pointer;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+    width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.42);
     transition: transform 0.48s var(--spring);
   }
   .np-overlay.anim-going-down .np-compact-head img {

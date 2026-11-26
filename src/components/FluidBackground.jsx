@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-// Apple-Music-style "living artwork" background: several copies of a pre-softened
+// Living-artwork ambient fluid background: several copies of a pre-softened
 // sprite slowly orbit/rotate on a tiny 56x56 canvas, upscaled by the GPU.
 // Automatically pauses its rAF loop when scrolled off-screen or hidden.
 

@@ -69,7 +69,7 @@ export default function LyricsView({ data, loading, song, visible = true }) {
   const activeRef = useRef(-1);
   const lastFill = useRef(new Map());
 
-  // glow (per-letter) for sustained words – like Apple Music Sing
+  // glow (per-letter) for sustained words
   const glowSet = useMemo(() => {
     const s = new Set();
     lines?.forEach((l, li) =>

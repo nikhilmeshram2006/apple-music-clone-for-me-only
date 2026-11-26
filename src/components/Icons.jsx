@@ -129,6 +129,13 @@ export const Airplay = (p) => (
     <path d="m12 14 5 6H7z" fill="currentColor" />
   </I>
 );
+export const Headphones = (p) => (
+  <I {...p} stroke sw={2}>
+    <path d="M3.5 14v-2a8.5 8.5 0 0 1 17 0v2" />
+    <rect x="3" y="13" width="4" height="6.5" rx="2" />
+    <rect x="17" y="13" width="4" height="6.5" rx="2" />
+  </I>
+);
 export const Mic = (p) => (
   <I {...p}>
     <rect x="8.5" y="2.5" width="7" height="12" rx="3.5" />

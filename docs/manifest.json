@@ -1,6 +1,6 @@
 {
-  "name": "Apple Music",
-  "short_name": "Music",
+  "name": "AUREL",
+  "short_name": "AUREL",
   "description": "Stream full-length songs with word-by-word synced lyrics and animated motion artwork.",
   "start_url": "./",
   "display": "standalone",

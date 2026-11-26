@@ -275,7 +275,7 @@ export function PlayerProvider({ children }) {
         artwork: [256, 512, 1000].map((s) => ({ src: art(current.art, s), sizes: `${s}x${s}`, type: 'image/jpeg' })),
       });
     }
-    document.title = `${current.title} · ${current.artist} — Apple Music`;
+    document.title = `${current.title} · ${current.artist} — AUREL`;
     return () => {
       cancelled = true;
     };

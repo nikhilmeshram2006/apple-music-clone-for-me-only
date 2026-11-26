@@ -130,7 +130,7 @@ export function SearchPage({ initialQuery = '' }) {
     <div className="page search-page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">apple music</div>
+          <div className="eyebrow">AUREL</div>
           <h1>Search & Browse</h1>
         </div>
       </header>
@@ -267,7 +267,7 @@ export function GenrePage({ id }) {
       <div className="genre-banner" style={{ background: `linear-gradient(135deg, ${g.colors[0]}, ${g.colors[1]})` }}>
         <button className="ah-back glass" onClick={() => navigate('/')} aria-label="Back to Home"><Back size={20} /></button>
         <div>
-          <div className="eyebrow">APPLE MUSIC GENRE</div>
+          <div className="eyebrow">AUREL GENRE</div>
           <h1>{g.name}</h1>
           <p>{songs.length} hand-curated tracks with word-by-word synced lyrics</p>
         </div>
@@ -594,7 +594,7 @@ export function ProfilePage() {
             {portrait ? <img src={portrait} alt="" /> : <User size={44} />}
           </div>
           <div className="ph-text">
-            <div className="eyebrow">APPLE MUSIC REPLAY · LISTENER PROFILE</div>
+            <div className="eyebrow">AUREL REPLAY · LISTENER PROFILE</div>
             {editing ? (
               <div className="ph-edit">
                 <input
@@ -649,7 +649,7 @@ export function ProfilePage() {
           <div className="pref-row">
             <div>
               <div className="t">Karaoke Lyric Scale</div>
-              <div className="s">Adjust font size inside the full-screen Apple Music lyric sheet</div>
+              <div className="s">Adjust font size inside the full-screen AUREL lyric sheet</div>
             </div>
             <div className="seg">
               {[
@@ -720,7 +720,7 @@ export function NotFoundPage({ message = "The page you’re looking for doesn’
   return (
     <div className="page not-found-page">
       <div className="nf-card glass">
-        <img src="logo.jpg" alt="Apple Music" className="nf-logo" />
+        <img src="logo.jpg" alt="AUREL" className="nf-logo" />
         <div className="eyebrow">404 · PAGE NOT FOUND</div>
         <h1>Can’t Find That Beat</h1>
         <p>{message}</p>

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { art, loadLyrics } from '../api';
-import { isSafeExternalUrl } from '../utils/studioCore';
+import { isSafeColor, isSafeExternalUrl } from '../utils/studioCore';
 import { fmt, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
 import {
-  CastIcon, ChevronDown, Explicit, LosslessWave, Lyrics as LyricsIcon, MoreVert, Next, Pause, Play,
+  CastIcon, ChevronDown, Explicit, Headphones, LosslessWave, Lyrics as LyricsIcon, More, Next, Pause, Play,
   Prev, QueueList, Repeat, Shuffle, Star, VolHigh, VolLow,
 } from './Icons';
 import LyricsView from './Lyrics';
@@ -44,15 +44,25 @@ function Scrubber({ offset = 0 }) {
 
   return (
     <div className={`scrubber ${drag !== null ? 'dragging' : ''}`}>
-      <div className="scrub-track" ref={bar} onMouseDown={down} onTouchStart={down}>
+      <div
+        className="scrub-pill"
+        ref={bar}
+        onMouseDown={down}
+        onTouchStart={down}
+        role="slider"
+        aria-label="Playback position"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(d || 180)}
+        aria-valuenow={Math.round(val)}
+      >
         <div className="scrub-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="scrub-times">
-        <span>{fmt(val + offset)}</span>
-        <span className="scrub-badge">
-          <LosslessWave size={14} /> Lossless
-        </span>
-        <span>-{fmt(Math.max(0, (d || 180) - val))}</span>
+        <div className="scrub-pill-times">
+          <span>{fmt(val + offset)}</span>
+          <span className="scrub-lossless">
+            <LosslessWave size={12} /> Lossless
+          </span>
+          <span>-{fmt(Math.max(0, (d || 180) - val))}</span>
+        </div>
       </div>
     </div>
   );
@@ -65,12 +75,31 @@ export default function NowPlaying() {
   const siteConfig = useSiteConfig();
   const song = player.current;
   const [panel, setPanel] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 960 ? 'art' : 'lyrics')); // 'art' | 'lyrics' | 'queue'
+  const [artMode, setArtMode] = useState(() => {
+    try {
+      return localStorage.getItem('am_art_mode') === 'card' ? 'card' : 'aura';
+    } catch {
+      return 'aura';
+    }
+  });
   const [artAnim, setArtAnim] = useState(''); // 'going-down' | 'going-up' | 'dip-down'
   const [panelAnimKey, setPanelAnimKey] = useState(0);
   const animTimerRef = useRef(null);
   const [lyrics, setLyrics] = useState(null);
   const [lyrLoading, setLyrLoading] = useState(false);
   const [menu, setMenu] = useState(false);
+
+  const toggleArtMode = () => {
+    setArtMode((m) => {
+      const next = m === 'aura' ? 'card' : 'aura';
+      try {
+        localStorage.setItem('am_art_mode', next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   const switchPanel = (target) => {
     const next = panel === target ? 'art' : target;
@@ -106,6 +135,8 @@ export default function NowPlaying() {
 
   if (!song) return null;
   const liked = lib.isLiked(song.id);
+  const auraC1 = isSafeColor(song.colors?.[0]) ? song.colors[0] : '#e4be8b';
+  const auraC2 = isSafeColor(song.colors?.[1]) ? song.colors[1] : '#7692d8';
 
   const goArtist = () => {
     if (!song.artistId) return;
@@ -116,7 +147,7 @@ export default function NowPlaying() {
   return (
     <div className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel} ${artAnim ? `anim-${artAnim}` : ''}`} aria-hidden={!player.nowOpen}>
       {siteConfig?.enableFluidBg !== false && (
-        <FluidBackground src={art(song.art, 300)} speed={1.1} dim={0.38} paused={!player.playing} active={player.nowOpen} />
+        <FluidBackground src={art(song.art, 300)} speed={1.0} dim={0.48} paused={!player.playing} active={player.nowOpen} />
       )}
       <div className="np-sheet">
         <button className="np-dismiss" onClick={() => player.setNowOpen(false)} aria-label="Collapse player">
@@ -125,23 +156,35 @@ export default function NowPlaying() {
         </button>
 
         <div className="np-body">
-          {/* LEFT: artwork + transport */}
+          {/* LEFT: frosted aura artwork + pill bar + capsule scrubber + circular glass transport */}
           <div className="np-left">
-            <div className={`np-art-stage ${player.playing ? 'playing' : 'paused'} ${song.videoArt && siteConfig?.enableMotionArt !== false ? 'has-video' : ''}`} onClick={() => switchPanel('lyrics')}>
-              {song.videoArt && siteConfig?.enableMotionArt !== false && player.nowOpen ? (
-                <video
-                  key={song.videoArt}
-                  className="np-video-art"
-                  src={song.videoArt}
-                  poster={art(song.art, 1000)}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                />
-              ) : (
-                <img src={art(song.art, 1000)} alt={song.title} decoding="async" />
-              )}
+            <div
+              className={`np-art-stage mode-${artMode} ${player.playing ? 'playing' : 'paused'} ${song.videoArt && siteConfig?.enableMotionArt !== false ? 'has-video' : ''}`}
+              style={{ '--aura-c1': auraC1, '--aura-c2': auraC2 }}
+              onClick={toggleArtMode}
+              title={artMode === 'aura' ? 'Switch to Square Cover' : 'Switch to Liquid Aura'}
+            >
+              <div className="np-aura-shell">
+                <span className="np-aura-ring np-aura-r3" aria-hidden="true" />
+                <span className="np-aura-ring np-aura-r2" aria-hidden="true" />
+                <span className="np-aura-ring np-aura-r1" aria-hidden="true" />
+                <div className="np-art-frame">
+                  {song.videoArt && siteConfig?.enableMotionArt !== false && player.nowOpen ? (
+                    <video
+                      key={song.videoArt}
+                      className="np-video-art"
+                      src={song.videoArt}
+                      poster={art(song.art, 1000)}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img src={art(song.art, 1000)} alt={song.title} decoding="async" />
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="np-compact-head">
@@ -155,63 +198,62 @@ export default function NowPlaying() {
                 </div>
               </div>
               <button className={`np-circle ${liked ? 'on' : ''}`} onClick={() => lib.toggleLike(song)} aria-label="Favorite">
-                <Star size={18} />
+                <Star size={17} />
               </button>
               <div style={{ position: 'relative' }}>
                 <button className="np-circle" onClick={() => setMenu((m) => !m)} aria-label="More">
-                  <MoreVert size={18} />
+                  <More size={17} />
                 </button>
                 {menu && <SongMenu song={song} onClose={() => setMenu(false)} />}
               </div>
             </div>
 
-            <div className="np-meta-row">
-              <div className="np-titles">
+            <div className="np-info-pill">
+              <button className={`np-circle np-pill-icon ${liked ? 'on' : ''}`} onClick={() => lib.toggleLike(song)} aria-label="Favorite">
+                <Star size={17} />
+              </button>
+              <div className="np-pill-center">
                 <div className="np-title">
                   <span>{song.title}</span>
                   {song.explicit && <Explicit />}
                 </div>
                 <div className="np-artist" onClick={goArtist}>{song.artist}</div>
               </div>
-              <div className="np-meta-actions">
-                <button className={`np-circle ${liked ? 'on' : ''}`} onClick={() => lib.toggleLike(song)} aria-label="Favorite">
-                  <Star size={18} />
+              <div className="np-pill-more" style={{ position: 'relative' }}>
+                <button className="np-circle np-pill-icon" onClick={() => setMenu((m) => !m)} aria-label="More">
+                  <More size={18} />
                 </button>
-                <div style={{ position: 'relative' }}>
-                  <button className="np-circle" onClick={() => setMenu((m) => !m)} aria-label="More">
-                    <MoreVert size={18} />
-                  </button>
-                  {menu && <SongMenu song={song} onClose={() => setMenu(false)} />}
-                </div>
+                {menu && <SongMenu song={song} onClose={() => setMenu(false)} />}
               </div>
             </div>
 
             <Scrubber offset={lyrics?.synced ? lyrics.offset : 0} />
 
             <div className="np-transport">
-              <button className={`np-t-aux ${player.shuffle ? 'on' : ''}`} onClick={player.toggleShuffle} title="Shuffle">
-                <Shuffle size={20} />
+              <button className={`np-t-aux ${player.shuffle ? 'on' : ''}`} onClick={player.toggleShuffle} title="Shuffle" aria-label="Shuffle">
+                <Shuffle size={18} />
               </button>
               <button className="np-t-skip" onClick={player.prev} aria-label="Previous">
-                <Prev size={34} />
+                <Prev size={28} />
               </button>
               <button className="np-t-play" onClick={player.toggle} aria-label={player.playing ? 'Pause' : 'Play'}>
-                {player.playing ? <Pause size={42} /> : <Play size={42} />}
+                {player.playing ? <Pause size={30} /> : <Play size={30} />}
               </button>
               <button className="np-t-skip" onClick={player.next} aria-label="Next">
-                <Next size={34} />
+                <Next size={28} />
               </button>
               <button
                 className={`np-t-aux ${player.repeat !== 'off' ? 'on' : ''}`}
                 onClick={player.cycleRepeat}
                 title="Repeat"
+                aria-label="Repeat"
               >
-                <Repeat size={20} one={player.repeat === 'one'} />
+                <Repeat size={18} one={player.repeat === 'one'} />
               </button>
             </div>
 
             <div className="np-volume">
-              <VolLow size={16} />
+              <VolLow size={15} />
               <input
                 type="range"
                 min="0"
@@ -222,7 +264,17 @@ export default function NowPlaying() {
                 onChange={(e) => player.setVolume(parseFloat(e.target.value))}
                 aria-label="Volume"
               />
-              <VolHigh size={16} />
+              <VolHigh size={15} />
+              {isSafeExternalUrl(song.appleUrl) && (
+                <button
+                  className="np-vol-ext"
+                  onClick={() => window.open(song.appleUrl, '_blank', 'noopener,noreferrer')}
+                  title="Open External Track Page"
+                  aria-label="Open External Track Page"
+                >
+                  <CastIcon size={15} />
+                </button>
+              )}
             </div>
 
             <div className="np-SwitchRow">
@@ -230,24 +282,25 @@ export default function NowPlaying() {
                 className={`np-pill ${panel === 'lyrics' ? 'on' : ''}`}
                 onClick={() => switchPanel('lyrics')}
                 title="Lyrics"
+                aria-label="Lyrics"
               >
-                <LyricsIcon size={22} />
+                <LyricsIcon size={21} />
               </button>
               <button
-                className="np-pill"
-                onClick={() =>
-                  isSafeExternalUrl(song.appleUrl) && window.open(song.appleUrl, '_blank', 'noopener,noreferrer')
-                }
-                title="Cast / AirPlay"
+                className={`np-pill ${artMode === 'aura' ? 'on' : ''}`}
+                onClick={toggleArtMode}
+                title={artMode === 'aura' ? 'Switch to Square Cover' : 'Switch to Aura Ring'}
+                aria-label="Toggle Aura Cover Mode"
               >
-                <CastIcon size={21} />
+                <Headphones size={21} />
               </button>
               <button
                 className={`np-pill ${panel === 'queue' ? 'on' : ''}`}
                 onClick={() => switchPanel('queue')}
                 title="Playing Next"
+                aria-label="Playing Next"
               >
-                <QueueList size={22} />
+                <QueueList size={21} />
               </button>
             </div>
           </div>

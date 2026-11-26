@@ -1,7 +1,7 @@
 import { getLyricsOverride, isSafeExternalUrl, stripScriptChars } from './utils/studioCore';
 
 // Runtime access to free, key-less services + live full-song & word-sync converter:
-//  - Curated catalog: 180+ full-length 320 kbps songs + pre-built word-by-word lyrics + animated Apple Music MP4 covers
+//  - Curated catalog: 337+ full-length songs + pre-built word-by-word lyrics + animated motion MP4 covers
 //  - Live Search (iTunes + /api/resolve + LRCLIB): any song searched live is upgraded on-the-fly to full-length 320 kbps
 //    audio AND its LRCLIB synced lyrics are converted in-browser into word-by-word karaoke timing!
 
@@ -304,7 +304,7 @@ export async function artistImage(name) {
   }
 }
 
-/** Resolve full-length stream & Apple Music animated cover on the fly for non-catalog tracks */
+/** Resolve full-length stream & animated motion cover on the fly for non-catalog tracks */
 export async function resolveFullStream(song) {
   if (song.audio) return { audio: song.audio, duration: song.duration, videoArt: song.videoArt, isFull: song.isFull };
   try {

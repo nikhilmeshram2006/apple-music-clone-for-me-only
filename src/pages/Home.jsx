@@ -90,9 +90,9 @@ export default function HomePage() {
     <div className="page home-page">
       <header className="page-header">
         <div className="ph-brand-row" onClick={() => navigate('/')} style={{ cursor: 'pointer' }} title="Go to Home">
-          <img className="ph-logo-img" src="logo.jpg" alt="Apple Music" decoding="async" />
+          <img className="ph-logo-img" src="logo.jpg" alt="AUREL" decoding="async" />
           <div>
-            <div className="eyebrow">apple music</div>
+            <div className="eyebrow">AUREL</div>
             <h1>Home</h1>
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function HomePage() {
         <div className="sec-head">
           <div>
             <h2>Word-for-Word Sing-Along</h2>
-            <p className="sec-sub">Tap a track — the full-screen Apple Music lyric sheet opens automatically</p>
+            <p className="sec-sub">Tap a track — the full-screen AUREL lyric sheet opens automatically</p>
           </div>
           <button
             className="sec-more"
