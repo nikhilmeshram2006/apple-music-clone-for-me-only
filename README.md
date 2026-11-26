@@ -9,7 +9,7 @@
   <br />
   <a href="https://applemusic.antideploy.app/">Live App</a>
   &nbsp;·&nbsp;
-  <a href="https://nikhilmeshram2006.github.io/apple-music-clone-for-me-only/">GitHub Pages Mirror</a>
+  <a href="https://nikhilmeshram2006.github.io/AUREL/">GitHub Pages Mirror</a>
 </p>
 
 ---
