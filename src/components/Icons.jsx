@@ -163,3 +163,21 @@ export const Wave = (p) => (
     <path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4" />
   </I>
 );
+export const Bluetooth = (p) => (
+  <I {...p} stroke sw={2}>
+    <path d="m6.5 6.5 11 11L12 22V2l5.5 4.5-11 11" />
+  </I>
+);
+export const Speaker = (p) => (
+  <I {...p} stroke sw={2}>
+    <rect x="4" y="2" width="16" height="20" rx="2.5" />
+    <circle cx="12" cy="14" r="4" />
+    <circle cx="12" cy="6.5" r="1" fill="currentColor" stroke="none" />
+  </I>
+);
+export const AutoOutput = (p) => (
+  <I {...p} stroke sw={2}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8.5 10.5v3M12 8.5v7M15.5 10.5v3" />
+  </I>
+);

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { art, loadLyrics } from '../api';
+import { useAudioOutput } from '../utils/audioOutput';
 import { isSafeColor, isSafeExternalUrl } from '../utils/studioCore';
-import { fmt, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
+import { audio, fmt, useLibrary, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
 import {
-  CastIcon, ChevronDown, Explicit, Headphones, LosslessWave, Lyrics as LyricsIcon, More, Next, Pause, Play,
-  Prev, QueueList, Repeat, Shuffle, Star, VolHigh, VolLow,
+  AutoOutput, Bluetooth, CastIcon, Check, ChevronDown, Explicit, Headphones, LosslessWave,
+  Lyrics as LyricsIcon, More, Next, Pause, Play, Prev, QueueList, Repeat, Shuffle, Speaker, Star, VolHigh, VolLow,
 } from './Icons';
 import LyricsView from './Lyrics';
 import { Bars, SongMenu } from './Shared';
@@ -71,6 +72,7 @@ function Scrubber({ offset = 0 }) {
 export default function NowPlaying() {
   const player = usePlayer();
   const lib = useLiked();
+  const { notify } = useLibrary();
   const { navigate } = useRouter();
   const siteConfig = useSiteConfig();
   const song = player.current;
@@ -88,6 +90,9 @@ export default function NowPlaying() {
   const [lyrics, setLyrics] = useState(null);
   const [lyrLoading, setLyrLoading] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [outputOpen, setOutputOpen] = useState(false);
+  const outputRef = useRef(null);
+  const output = useAudioOutput(audio, notify);
 
   const toggleArtMode = () => {
     setArtMode((m) => {
@@ -118,6 +123,30 @@ export default function NowPlaying() {
   };
 
   useEffect(() => () => animTimerRef.current && clearTimeout(animTimerRef.current), []);
+
+  useEffect(() => {
+    if (!player.nowOpen) setOutputOpen(false);
+  }, [player.nowOpen]);
+
+  useEffect(() => {
+    if (!outputOpen) return;
+    const onDown = (e) => {
+      if (!outputRef.current?.contains(e.target)) setOutputOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        setOutputOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [outputOpen]);
 
   useEffect(() => {
     if (!song) return;
@@ -286,14 +315,72 @@ export default function NowPlaying() {
               >
                 <LyricsIcon size={21} />
               </button>
-              <button
-                className={`np-pill ${artMode === 'aura' ? 'on' : ''}`}
-                onClick={toggleArtMode}
-                title={artMode === 'aura' ? 'Switch to Square Cover' : 'Switch to Aura Ring'}
-                aria-label="Toggle Aura Cover Mode"
-              >
-                <Headphones size={21} />
-              </button>
+              <div className="np-output-wrap" ref={outputRef}>
+                <button
+                  className={`np-pill ${outputOpen || output.activeId !== 'auto' ? 'on' : ''}`}
+                  onClick={() => {
+                    if (!outputOpen) output.refreshDevices();
+                    setOutputOpen((o) => !o);
+                  }}
+                  title={`Audio Output · ${output.activeOption?.name || 'Automatic'}`}
+                  aria-label="Audio Output"
+                  aria-haspopup="menu"
+                  aria-expanded={outputOpen}
+                >
+                  <Headphones size={21} />
+                </button>
+                {outputOpen && (
+                  <div className="np-output-pop" role="menu" aria-label="Audio Output">
+                    <div className="np-out-head">
+                      <span className="np-out-title">Audio Output</span>
+                      <span className="np-out-count">{output.options.length} available</span>
+                    </div>
+                    <div className="np-out-list">
+                      {output.options.map((opt) => {
+                        const isActive = opt.id === output.activeId;
+                        const IconComp =
+                          opt.kind === 'auto' ? AutoOutput
+                            : opt.kind === 'bluetooth' ? Bluetooth
+                              : opt.kind === 'headphones' ? Headphones
+                                : Speaker;
+                        return (
+                          <button
+                            key={opt.id}
+                            role="menuitemradio"
+                            aria-checked={isActive}
+                            className={`np-out-item ${isActive ? 'active' : ''}`}
+                            onClick={async () => {
+                              await output.selectOption(opt);
+                              setOutputOpen(false);
+                            }}
+                          >
+                            <span className="np-out-ico"><IconComp size={17} /></span>
+                            <span className="np-out-meta">
+                              <span className="np-out-name">{opt.name}</span>
+                              <span className="np-out-sub">{opt.subtitle}</span>
+                            </span>
+                            {isActive && (
+                              <span className="np-out-check"><Check size={16} /></span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {output.canPickNative && (
+                      <button
+                        className="np-out-picker"
+                        onClick={async () => {
+                          await output.pickSystemDevice();
+                          setOutputOpen(false);
+                        }}
+                      >
+                        {output.isSafariPicker ? 'Other Audio Devices…' : '+ Choose System Device…'}
+                      </button>
+                    )}
+                    {output.statusNote && <div className="np-out-note">{output.statusNote}</div>}
+                  </div>
+                )}
+              </div>
               <button
                 className={`np-pill ${panel === 'queue' ? 'on' : ''}`}
                 onClick={() => switchPanel('queue')}
