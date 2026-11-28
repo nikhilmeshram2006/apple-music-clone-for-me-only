@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { art, searchAll } from '../api';
 import { stripScriptChars } from '../utils/studioCore';
 import { useCatalog, usePlayer, usePlayerActions, usePlayerTime, useRouter, useSiteConfig } from '../store';
-import { Close, Home, Library, Lyrics, Next, Pause, Play, Search, User } from './Icons';
+import { Close, Lyrics, Next, Pause, Play, Search } from './Icons';
 
 export function TopBar({ onOpenMobileMenu }) {
   const { path, navigate } = useRouter();
@@ -230,36 +230,12 @@ function MiniPlayer() {
 }
 
 export default function BottomDock() {
-  const { path, navigate } = useRouter();
-
-  const tab = path.startsWith('/library') || path.startsWith('/playlist')
-    ? 'library'
-    : path.startsWith('/profile')
-    ? 'profile'
-    : path === '/'
-    ? 'home'
-    : '';
+  const player = usePlayer();
+  if (!player.current) return null;
 
   return (
     <div className="dock-wrap">
       <MiniPlayer />
-
-      <nav className="bottom-dock-minimal" aria-label="Primary">
-        <button className={`dock-tab-min ${tab === 'home' ? 'active' : ''}`} onClick={() => navigate('/')}>
-          <Home size={19} />
-          <span>Home</span>
-        </button>
-
-        <button className={`dock-tab-min ${tab === 'library' ? 'active' : ''}`} onClick={() => navigate('/library')}>
-          <Library size={19} />
-          <span>Library</span>
-        </button>
-
-        <button className={`dock-tab-min ${tab === 'profile' ? 'active' : ''}`} onClick={() => navigate('/profile')}>
-          <User size={19} />
-          <span>Profile</span>
-        </button>
-      </nav>
     </div>
   );
 }

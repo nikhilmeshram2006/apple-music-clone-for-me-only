@@ -5,7 +5,7 @@ import { isSafeColor, isSafeExternalUrl } from '../utils/studioCore';
 import { audio, fmt, useLibrary, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
 import {
-  AutoOutput, Bluetooth, CastIcon, Check, ChevronDown, Explicit, Headphones, LosslessWave,
+  AutoOutput, Bluetooth, CastIcon, Check, Explicit, Headphones, LosslessWave,
   Lyrics as LyricsIcon, More, Next, Pause, Play, Prev, QueueList, Repeat, Shuffle, Speaker, Star, VolHigh, VolLow,
 } from './Icons';
 import LyricsView from './Lyrics';
@@ -92,6 +92,9 @@ export default function NowPlaying() {
   const [menu, setMenu] = useState(false);
   const [outputOpen, setOutputOpen] = useState(false);
   const outputRef = useRef(null);
+  const overlayRef = useRef(null);
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, startT: 0, dy: 0, dragging: false });
+  const justDraggedRef = useRef(false);
   const output = useAudioOutput(audio, notify);
 
   const toggleArtMode = () => {
@@ -173,15 +176,120 @@ export default function NowPlaying() {
     navigate(`/artist/${song.artistId}`);
   };
 
+  const canStartSwipe = (target) => {
+    if (!target || typeof target.closest !== 'function') return false;
+    if (target.closest('.scrubber, .np-volume, .np-output-pop, .pop-menu, input')) return false;
+    const scroller = target.closest('.np-q-list, .lyrics-wrap.plain');
+    if (scroller && scroller.scrollTop > 2) return false;
+    return true;
+  };
+
+  const beginDrag = (x, y) => {
+    dragRef.current = { active: true, startX: x, startY: y, startT: performance.now(), dy: 0, dragging: false };
+  };
+
+  const moveDrag = (x, y) => {
+    const d = dragRef.current;
+    if (!d.active) return false;
+    const dx = x - d.startX;
+    const dy = y - d.startY;
+    if (!d.dragging) {
+      if (Math.abs(dx) > 14 && Math.abs(dx) > dy) {
+        d.active = false;
+        return false;
+      }
+      if (dy > 8 && dy > Math.abs(dx) * 1.1) {
+        d.dragging = true;
+        overlayRef.current?.classList.add('dragging');
+      }
+    }
+    if (d.dragging) {
+      const clampedY = Math.max(0, dy);
+      d.dy = clampedY;
+      if (overlayRef.current) {
+        overlayRef.current.style.transform = `translate3d(0, ${clampedY}px, 0)`;
+      }
+      return true;
+    }
+    return false;
+  };
+
+  const endDrag = () => {
+    const d = dragRef.current;
+    if (!d.active) return;
+    const wasDragging = d.dragging;
+    const dy = d.dy;
+    const dt = Math.max(1, performance.now() - d.startT);
+    const velocity = dy / dt;
+    d.active = false;
+    d.dragging = false;
+    d.dy = 0;
+
+    if (overlayRef.current) {
+      overlayRef.current.classList.remove('dragging');
+      overlayRef.current.style.transform = '';
+    }
+    if (wasDragging) {
+      justDraggedRef.current = true;
+      setTimeout(() => {
+        justDraggedRef.current = false;
+      }, 280);
+      if (dy >= 95 || (dy >= 42 && velocity >= 0.45)) {
+        player.setNowOpen(false);
+      }
+    }
+  };
+
+  const onTouchStart = (e) => {
+    if (!player.nowOpen || e.touches.length !== 1) return;
+    if (!canStartSwipe(e.target)) return;
+    const t = e.touches[0];
+    beginDrag(t.clientX, t.clientY);
+  };
+
+  const onTouchMove = (e) => {
+    if (!dragRef.current.active || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    moveDrag(t.clientX, t.clientY);
+  };
+
+  const onGrabberMouseDown = (e) => {
+    if (!player.nowOpen || e.button !== 0) return;
+    beginDrag(e.clientX, e.clientY);
+    const onMove = (ev) => moveDrag(ev.clientX, ev.clientY);
+    const onUp = () => {
+      endDrag();
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   return (
-    <div className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel} ${artAnim ? `anim-${artAnim}` : ''}`} aria-hidden={!player.nowOpen}>
+    <div
+      ref={overlayRef}
+      className={`np-overlay ${player.nowOpen ? 'open' : ''} panel-${panel} ${artAnim ? `anim-${artAnim}` : ''}`}
+      aria-hidden={!player.nowOpen}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={endDrag}
+      onTouchCancel={endDrag}
+    >
       {siteConfig?.enableFluidBg !== false && (
         <FluidBackground src={art(song.art, 300)} speed={1.0} dim={0.48} paused={!player.playing} active={player.nowOpen} />
       )}
       <div className="np-sheet">
-        <button className="np-dismiss" onClick={() => player.setNowOpen(false)} aria-label="Collapse player">
+        <button
+          className="np-dismiss"
+          onMouseDown={onGrabberMouseDown}
+          onClick={() => {
+            if (!justDraggedRef.current) player.setNowOpen(false);
+          }}
+          title="Swipe down to minimize"
+          aria-label="Swipe down to minimize player"
+        >
           <span className="grabber" />
-          <ChevronDown size={22} />
         </button>
 
         <div className="np-body">
@@ -190,7 +298,9 @@ export default function NowPlaying() {
             <div
               className={`np-art-stage mode-${artMode} ${player.playing ? 'playing' : 'paused'} ${song.videoArt && siteConfig?.enableMotionArt !== false ? 'has-video' : ''}`}
               style={{ '--aura-c1': auraC1, '--aura-c2': auraC2 }}
-              onClick={toggleArtMode}
+              onClick={() => {
+                if (!justDraggedRef.current) toggleArtMode();
+              }}
               title={artMode === 'aura' ? 'Switch to Square Cover' : 'Switch to Liquid Aura'}
             >
               <div className="np-aura-shell">
