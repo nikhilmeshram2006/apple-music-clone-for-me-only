@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isNativeAndroid } from './nativeAudio';
 
 const STORAGE_KEY = 'am_audio_output';
 
@@ -40,6 +41,8 @@ function kindPriority(item) {
 }
 
 export function useAudioOutput(audioEl, notify) {
+  const nativeAndroid = isNativeAndroid();
+  const nativeBridge = nativeAndroid ? window.AurelNative : null;
   const canSetSinkId = Boolean(audioEl && typeof audioEl.setSinkId === 'function');
   const mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
   const canEnumerate = Boolean(mediaDevices && typeof mediaDevices.enumerateDevices === 'function');
@@ -50,8 +53,9 @@ export function useAudioOutput(audioEl, notify) {
   const [sessionPicked, setSessionPicked] = useState([]);
   const [defaultLabel, setDefaultLabel] = useState('');
   const [defaultGroupId, setDefaultGroupId] = useState('');
+  const [nativeRoutedId, setNativeRoutedId] = useState('');
   const [labelsLocked, setLabelsLocked] = useState(false);
-  const [permState, setPermState] = useState('unknown');
+  const [permState, setPermState] = useState(nativeAndroid ? 'granted' : 'unknown');
   const [unlocking, setUnlocking] = useState(false);
   const [androidBtInput, setAndroidBtInput] = useState(null);
   const [webkitWireless, setWebkitWireless] = useState(() =>
@@ -79,7 +83,7 @@ export function useAudioOutput(audioEl, notify) {
   }, []);
 
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return;
+    if (nativeAndroid || typeof navigator === 'undefined' || !navigator.permissions?.query) return;
     let alive = true;
     let permStatus = null;
     navigator.permissions
@@ -99,9 +103,48 @@ export function useAudioOutput(audioEl, notify) {
       alive = false;
       if (permStatus) permStatus.onchange = null;
     };
-  }, []);
+  }, [nativeAndroid]);
 
   const refreshDevices = useCallback(async () => {
+    if (nativeBridge?.getOutputDevices) {
+      try {
+        const raw = nativeBridge.getOutputDevices();
+        const data = JSON.parse(raw || '{}');
+        const list = Array.isArray(data.devices) ? data.devices : [];
+        const mapped = list.map((d) => ({
+          id: String(d.id),
+          sinkId: String(d.id),
+          name: d.name || 'Audio Device',
+          kind: d.kind || 'speaker',
+          subtitle: d.subtitle || (d.kind === 'bluetooth' ? 'Bluetooth Audio' : d.kind === 'headphones' ? 'Wired Headphones' : 'Phone Speaker'),
+          isHandsFree: false,
+          detected: true,
+        }));
+        mapped.sort((a, b) => kindPriority(a) - kindPriority(b));
+        setDetected(mapped);
+        const rId = data.routedId ? String(data.routedId) : '';
+        const pId = data.preferredId ? String(data.preferredId) : '';
+        setNativeRoutedId(rId);
+        const routedDev = mapped.find((d) => d.id === rId) || null;
+        setDefaultLabel(routedDev?.name || '');
+        setLabelsLocked(false);
+
+        if (!restoredRef.current) {
+          restoredRef.current = true;
+          if (activeId && activeId !== 'auto' && mapped.some((d) => d.id === activeId)) {
+            nativeBridge.setOutputDevice?.(activeId);
+          } else if (pId && mapped.some((d) => d.id === pId)) {
+            persistId(pId);
+          } else {
+            persistId('auto');
+          }
+        }
+        return true;
+      } catch {
+        return true;
+      }
+    }
+
     if (audioEl && 'webkitCurrentPlaybackTargetIsWireless' in audioEl) {
       setWebkitWireless(Boolean(audioEl.webkitCurrentPlaybackTargetIsWireless));
     }
@@ -180,7 +223,7 @@ export function useAudioOutput(audioEl, notify) {
     } catch {
       return false;
     }
-  }, [canEnumerate, mediaDevices, activeId, canSetSinkId, audioEl, persistId]);
+  }, [nativeBridge, canEnumerate, mediaDevices, activeId, canSetSinkId, audioEl, persistId]);
 
   useEffect(() => {
     refreshDevices();
@@ -192,27 +235,37 @@ export function useAudioOutput(audioEl, notify) {
       if (audioEl) setWebkitWireless(Boolean(audioEl.webkitCurrentPlaybackTargetIsWireless));
       refreshDevices();
     };
-    if (mediaDevices?.addEventListener) {
+    if (nativeAndroid && typeof window !== 'undefined') {
+      window.addEventListener('aurel-native-devices', onFocus);
+    }
+    if (!nativeAndroid && mediaDevices?.addEventListener) {
       mediaDevices.addEventListener('devicechange', onFocus);
     }
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVis);
-    if (audioEl?.addEventListener) {
+    if (!nativeAndroid && audioEl?.addEventListener) {
       audioEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', onWireless);
     }
     return () => {
-      if (mediaDevices?.removeEventListener) {
+      if (nativeAndroid && typeof window !== 'undefined') {
+        window.removeEventListener('aurel-native-devices', onFocus);
+      }
+      if (!nativeAndroid && mediaDevices?.removeEventListener) {
         mediaDevices.removeEventListener('devicechange', onFocus);
       }
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVis);
-      if (audioEl?.removeEventListener) {
+      if (!nativeAndroid && audioEl?.removeEventListener) {
         audioEl.removeEventListener('webkitcurrentplaybacktargetiswirelesschanged', onWireless);
       }
     };
-  }, [audioEl, mediaDevices, refreshDevices]);
+  }, [audioEl, mediaDevices, nativeAndroid, refreshDevices]);
 
   const pickSystemDevice = useCallback(async () => {
+    if (nativeBridge?.openSystemOutputPicker) {
+      nativeBridge.openSystemOutputPicker();
+      return true;
+    }
     if (canSelectOutput) {
       try {
         const picked = await mediaDevices.selectAudioOutput();
@@ -253,9 +306,13 @@ export function useAudioOutput(audioEl, notify) {
       }
     }
     return false;
-  }, [audioEl, canSelectOutput, canSetSinkId, canWebkitPicker, mediaDevices, notify, persistId]);
+  }, [audioEl, canSelectOutput, canSetSinkId, canWebkitPicker, mediaDevices, nativeBridge, notify, persistId]);
 
   const unlockDevices = useCallback(async () => {
+    if (nativeAndroid) {
+      await refreshDevices();
+      return true;
+    }
     if (canSelectOutput && !mediaDevices?.getUserMedia) {
       return pickSystemDevice();
     }
@@ -286,18 +343,22 @@ export function useAudioOutput(audioEl, notify) {
       }
       setUnlocking(false);
     }
-  }, [canSelectOutput, mediaDevices, pickSystemDevice, refreshDevices]);
+  }, [canSelectOutput, mediaDevices, nativeAndroid, pickSystemDevice, refreshDevices]);
 
   const onOpenPopover = useCallback(async () => {
     const unlocked = await refreshDevices();
-    if (!unlocked && permState !== 'denied' && !attemptedAutoUnlockRef.current && mediaDevices?.getUserMedia) {
+    if (!nativeAndroid && !unlocked && permState !== 'denied' && !attemptedAutoUnlockRef.current && mediaDevices?.getUserMedia) {
       attemptedAutoUnlockRef.current = true;
       await unlockDevices();
     }
-  }, [mediaDevices, permState, refreshDevices, unlockDevices]);
+  }, [mediaDevices, nativeAndroid, permState, refreshDevices, unlockDevices]);
 
   const defaultMatched = useMemo(() => {
     if (!detected.length) return null;
+    if (nativeAndroid && nativeRoutedId) {
+      const byRouted = detected.find((d) => d.id === nativeRoutedId);
+      if (byRouted) return byRouted;
+    }
     if (defaultGroupId && defaultLabel) {
       const exactGroup = detected.find((d) => d.groupId === defaultGroupId && d.name === defaultLabel);
       if (exactGroup) return exactGroup;
@@ -311,32 +372,33 @@ export function useAudioOutput(audioEl, notify) {
       );
     }
     return null;
-  }, [detected, defaultGroupId, defaultLabel]);
+  }, [detected, defaultGroupId, defaultLabel, nativeAndroid, nativeRoutedId]);
 
   const options = useMemo(() => {
     const merged = [...detected];
-    const seenIds = new Set(merged.map((d) => d.id));
-    for (const p of sessionPicked) {
-      if (!seenIds.has(p.id)) {
-        seenIds.add(p.id);
-        merged.push(p);
+    if (!nativeAndroid) {
+      const seenIds = new Set(merged.map((d) => d.id));
+      for (const p of sessionPicked) {
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          merged.push(p);
+        }
       }
-    }
 
-    // Mobile Chrome / iOS Safari detected wireless routes when audiooutput list is hidden
-    if (!merged.length) {
-      if (androidBtInput) {
-        merged.push(androidBtInput);
-      } else if (webkitWireless) {
-        merged.push({
-          id: 'safari-wireless',
-          sinkId: '',
-          kind: 'bluetooth',
-          name: 'Bluetooth / AirPlay',
-          subtitle: 'Wireless Audio · Active',
-          detected: true,
-          osManaged: true,
-        });
+      if (!merged.length) {
+        if (androidBtInput) {
+          merged.push(androidBtInput);
+        } else if (webkitWireless) {
+          merged.push({
+            id: 'safari-wireless',
+            sinkId: '',
+            kind: 'bluetooth',
+            name: 'Bluetooth / AirPlay',
+            subtitle: 'Wireless Audio · Active',
+            detected: true,
+            osManaged: true,
+          });
+        }
       }
     }
 
@@ -351,10 +413,7 @@ export function useAudioOutput(audioEl, notify) {
       ...merged,
     ];
 
-    // Only include Speaker fallback if labels aren't locked and no real speaker exists
-    // (When unlocked on mobile with Bluetooth connected, show Speaker alongside Bluetooth honestly)
-    const hasSpeaker = merged.some((d) => d.kind === 'speaker');
-    if (!labelsLocked && !hasSpeaker) {
+    if (!nativeAndroid && !labelsLocked && !merged.some((d) => d.kind === 'speaker')) {
       list.push({
         id: 'preset-speaker',
         sinkId: '',
@@ -367,7 +426,7 @@ export function useAudioOutput(audioEl, notify) {
     }
 
     return list;
-  }, [detected, sessionPicked, androidBtInput, webkitWireless, defaultLabel, labelsLocked, canSetSinkId]);
+  }, [detected, nativeAndroid, sessionPicked, androidBtInput, webkitWireless, defaultLabel, labelsLocked, canSetSinkId]);
 
   useEffect(() => {
     if (activeId !== 'auto' && !options.some((o) => o.id === activeId)) {
@@ -381,6 +440,17 @@ export function useAudioOutput(audioEl, notify) {
   );
 
   const playingDevice = useMemo(() => {
+    if (nativeAndroid) {
+      if (nativeRoutedId) {
+        const routed = options.find((o) => o.id === nativeRoutedId);
+        if (routed) return routed;
+      }
+      if (activeId !== 'auto') {
+        const selected = options.find((o) => o.id === activeId);
+        if (selected) return selected;
+      }
+      return defaultMatched;
+    }
     if (activeId !== 'auto') {
       const selected = options.find((o) => o.id === activeId);
       if (selected) return selected;
@@ -391,13 +461,13 @@ export function useAudioOutput(audioEl, notify) {
       return options.find((o) => o.id === 'safari-wireless') || { kind: 'bluetooth', name: 'Bluetooth / AirPlay' };
     }
     return null;
-  }, [activeId, options, defaultMatched, androidBtInput, webkitWireless]);
+  }, [nativeAndroid, nativeRoutedId, activeId, options, defaultMatched, androidBtInput, webkitWireless]);
 
   const defaultKind = defaultLabel ? classifyOutput(defaultLabel).kind : '';
   const isBluetoothActive = Boolean(
     webkitWireless ||
       playingDevice?.kind === 'bluetooth' ||
-      (activeId === 'auto' && defaultKind === 'bluetooth')
+      (!nativeAndroid && activeId === 'auto' && defaultKind === 'bluetooth')
   );
   const playingLabel =
     playingDevice?.name || (defaultLabel ? defaultLabel : labelsLocked ? '' : 'System Default');
@@ -406,6 +476,19 @@ export function useAudioOutput(audioEl, notify) {
     async (opt) => {
       if (!opt) return false;
       setStatusNote('');
+
+      if (nativeBridge?.setOutputDevice) {
+        const target = opt.id === 'auto' ? 'auto' : String(opt.id);
+        const ok = nativeBridge.setOutputDevice(target);
+        if (ok) {
+          persistId(opt.id);
+          await refreshDevices();
+          notify?.(opt.id === 'auto' ? 'Audio output: Automatic' : `Switched output to ${opt.name}`, 'success');
+          return true;
+        }
+        notify?.(`Could not switch directly to ${opt.name}`, 'error');
+        return false;
+      }
 
       if (opt.id === 'auto') {
         if (canSetSinkId) {
@@ -477,7 +560,7 @@ export function useAudioOutput(audioEl, notify) {
 
       return true;
     },
-    [audioEl, canSetSinkId, canWebkitPicker, notify, persistId, refreshDevices]
+    [audioEl, canSetSinkId, canWebkitPicker, nativeBridge, notify, persistId, refreshDevices]
   );
 
   return {
@@ -487,12 +570,13 @@ export function useAudioOutput(audioEl, notify) {
     playingDeviceId: playingDevice?.id || '',
     playingLabel,
     isBluetoothActive,
+    isNativeAndroid: nativeAndroid,
     labelsLocked,
     permState,
     unlocking,
     statusNote,
-    canPickNative: canSelectOutput || canWebkitPicker,
-    isSafariPicker: !canSelectOutput && canWebkitPicker,
+    canPickNative: nativeAndroid || canSelectOutput || canWebkitPicker,
+    isSafariPicker: !nativeAndroid && !canSelectOutput && canWebkitPicker,
     refreshDevices,
     onOpenPopover,
     unlockDevices,

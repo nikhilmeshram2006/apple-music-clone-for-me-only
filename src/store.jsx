@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { art, resolveFullStream } from './api';
+import { createNativeAudio, isNativeAndroid } from './utils/nativeAudio';
 
 // ------------------------------------------------------------------ persistence
 const load = (k, d) => {
@@ -204,8 +205,12 @@ export const usePlayerActions = () => useContext(PlayerActionsCtx);
 export const useActiveSong = () => useContext(ActiveSongCtx);
 export const usePlayerTime = () => useContext(TimeCtx);
 
-export const audio = typeof Audio !== 'undefined' ? new Audio() : null;
-if (audio) {
+export const audio = isNativeAndroid()
+  ? createNativeAudio()
+  : typeof Audio !== 'undefined'
+    ? new Audio()
+    : null;
+if (audio && !audio.isNative) {
   audio.preload = 'auto';
   audio.setAttribute('x-webkit-airplay', 'allow');
   audio.style.display = 'none';
@@ -273,6 +278,9 @@ export function PlayerProvider({ children }) {
           startStream(res.audio || current.preview, res.duration || current.duration);
         });
       }
+    }
+    if (typeof audio.setMetadata === 'function') {
+      audio.setMetadata(current, art(current.art, 512));
     }
     // media session
     if ('mediaSession' in navigator) {
@@ -373,7 +381,18 @@ export function PlayerProvider({ children }) {
       navigator.mediaSession.setActionHandler('nexttrack', () => next());
       navigator.mediaSession.setActionHandler('previoustrack', () => prev());
     }
+    if (typeof window !== 'undefined') {
+      window.__aurelNativeAction = (act) => {
+        if (act === 'play') audio.play();
+        else if (act === 'pause') audio.pause();
+        else if (act === 'next') next();
+        else if (act === 'prev') prev();
+      };
+    }
     return () => {
+      if (typeof window !== 'undefined' && window.__aurelNativeAction) {
+        window.__aurelNativeAction = null;
+      }
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('playing', onCanPlay);
       audio.removeEventListener('pause', onPause);

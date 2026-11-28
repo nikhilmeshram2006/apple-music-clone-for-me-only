@@ -398,7 +398,7 @@ export default function NowPlaying() {
                           if (picked) setOutputOpen(false);
                         }}
                       >
-                        {output.isSafariPicker ? 'Other Audio Devices…' : '+ Choose System Device…'}
+                        {output.isNativeAndroid ? 'System Media Output…' : output.isSafariPicker ? 'Other Audio Devices…' : '+ Choose System Device…'}
                       </button>
                     )}
                     {output.statusNote && <div className="np-out-note">{output.statusNote}</div>}
