@@ -7,7 +7,7 @@
 <p align="center">
   Web music player for streaming 337 full-length songs with a frosted Liquid-Aura player UI, word-synchronized lyrics, motion album artwork, and 4K artist profiles.
   <br />
-  <a href="https://applemusic.antideploy.app/">Live App</a>
+  <a href="https://aurel.antideploy.app/">Live App</a>
   &nbsp;·&nbsp;
   <a href="https://nikhilmeshram2006.github.io/AUREL/">GitHub Pages Mirror</a>
 </p>
