@@ -207,6 +207,8 @@ export const usePlayerTime = () => useContext(TimeCtx);
 export const audio = typeof Audio !== 'undefined' ? new Audio() : null;
 if (audio) {
   audio.preload = 'auto';
+  audio.setAttribute('x-webkit-airplay', 'allow');
+  audio.style.display = 'none';
 }
 
 export function PlayerProvider({ children }) {
@@ -225,6 +227,12 @@ export function PlayerProvider({ children }) {
   const st = useRef({});
   const current = queue[index] || null;
   st.current = { queue, index, repeat, shuffle, current };
+
+  useEffect(() => {
+    if (audio && !audio.isConnected && document.body) {
+      document.body.appendChild(audio);
+    }
+  }, []);
 
   useEffect(() => {
     if (audio) audio.volume = volume;

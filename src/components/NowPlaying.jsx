@@ -317,12 +317,13 @@ export default function NowPlaying() {
               </button>
               <div className="np-output-wrap" ref={outputRef}>
                 <button
-                  className={`np-pill ${outputOpen || output.activeId !== 'auto' ? 'on' : ''}`}
+                  className={`np-pill ${outputOpen || output.activeId !== 'auto' ? 'on' : ''} ${output.isBluetoothActive ? 'bt-active' : ''}`}
                   onClick={() => {
-                    if (!outputOpen) output.refreshDevices();
-                    setOutputOpen((o) => !o);
+                    const nextOpen = !outputOpen;
+                    setOutputOpen(nextOpen);
+                    if (nextOpen) output.onOpenPopover();
                   }}
-                  title={`Audio Output · ${output.activeOption?.name || 'Automatic'}`}
+                  title={`Audio Output · ${output.playingLabel || output.activeOption?.name || 'Automatic'}`}
                   aria-label="Audio Output"
                   aria-haspopup="menu"
                   aria-expanded={outputOpen}
@@ -333,11 +334,20 @@ export default function NowPlaying() {
                   <div className="np-output-pop" role="menu" aria-label="Audio Output">
                     <div className="np-out-head">
                       <span className="np-out-title">Audio Output</span>
-                      <span className="np-out-count">{output.options.length} available</span>
+                      <span className="np-out-count">
+                        {output.unlocking ? 'Scanning…' : `${output.options.length} available`}
+                      </span>
                     </div>
+                    {output.playingLabel && (
+                      <div className={`np-out-now ${output.isBluetoothActive ? 'bt' : ''}`}>
+                        {output.isBluetoothActive ? <Bluetooth size={13} /> : <Speaker size={13} />}
+                        <span>Playing on {output.playingLabel}</span>
+                      </div>
+                    )}
                     <div className="np-out-list">
                       {output.options.map((opt) => {
                         const isActive = opt.id === output.activeId;
+                        const isLivePlaying = output.activeId === 'auto' && opt.id === output.playingDeviceId;
                         const IconComp =
                           opt.kind === 'auto' ? AutoOutput
                             : opt.kind === 'bluetooth' ? Bluetooth
@@ -350,8 +360,8 @@ export default function NowPlaying() {
                             aria-checked={isActive}
                             className={`np-out-item ${isActive ? 'active' : ''}`}
                             onClick={async () => {
-                              await output.selectOption(opt);
-                              setOutputOpen(false);
+                              const switched = await output.selectOption(opt);
+                              if (switched !== false) setOutputOpen(false);
                             }}
                           >
                             <span className="np-out-ico"><IconComp size={17} /></span>
@@ -359,6 +369,7 @@ export default function NowPlaying() {
                               <span className="np-out-name">{opt.name}</span>
                               <span className="np-out-sub">{opt.subtitle}</span>
                             </span>
+                            {isLivePlaying && <span className="np-out-live">Playing</span>}
                             {isActive && (
                               <span className="np-out-check"><Check size={16} /></span>
                             )}
@@ -366,12 +377,25 @@ export default function NowPlaying() {
                         );
                       })}
                     </div>
+                    {output.labelsLocked && (
+                      <button
+                        className="np-out-unlock"
+                        onClick={() => output.unlockDevices()}
+                        disabled={output.unlocking}
+                      >
+                        <Bluetooth size={15} />
+                        <span>
+                          <strong>{output.unlocking ? 'Scanning devices…' : 'Detect Bluetooth & Speakers'}</strong>
+                          <small>Grant browser audio-device access to list & switch outputs</small>
+                        </span>
+                      </button>
+                    )}
                     {output.canPickNative && (
                       <button
                         className="np-out-picker"
                         onClick={async () => {
-                          await output.pickSystemDevice();
-                          setOutputOpen(false);
+                          const picked = await output.pickSystemDevice();
+                          if (picked) setOutputOpen(false);
                         }}
                       >
                         {output.isSafariPicker ? 'Other Audio Devices…' : '+ Choose System Device…'}
