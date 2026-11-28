@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "app.antideploy.aurel"
-    compileSdk = 35
+        compileSdk = 35
 
     defaultConfig {
         applicationId = "app.antideploy.aurel"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     buildTypes {
