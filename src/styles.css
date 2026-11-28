@@ -958,12 +958,14 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
 /* Dual-Mode Artwork Stage: Liquid Aura Rings ('aura') vs Rounded Square ('card') */
 .np-art-stage {
   position: relative;
-  width: min(100%, 336px);
-  height: min(35vh, 336px);
+  width: min(100%, 35vh, 336px);
+  height: min(100%, 35vh, 336px);
+  aspect-ratio: 1;
   flex-shrink: 0;
   margin: 0 auto 4px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
+  overflow: visible;
   transform-origin: center bottom;
   transition:
     transform 0.54s var(--spring),
@@ -971,6 +973,104 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
     height 0.54s var(--spring),
     margin 0.54s var(--spring),
     opacity 0.38s var(--ease);
+}
+.np-liquid-stage {
+  position: relative;
+  width: 100%; height: 100%;
+  overflow: visible;
+  display: flex; align-items: center; justify-content: center;
+}
+.np-liquid-canvas {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 132%; height: 132%;
+  transform: translate3d(-50%, -50%, 0);
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.28s var(--ease);
+}
+.np-liquid-canvas.vis {
+  opacity: 1;
+}
+.np-liquid-media {
+  transition:
+    width 0.55s var(--spring),
+    height 0.55s var(--spring),
+    border-radius 0.55s var(--spring),
+    transform 0.55s var(--spring),
+    box-shadow 0.55s var(--spring),
+    border-color 0.4s var(--ease),
+    opacity 0.3s var(--ease);
+}
+.np-liquid-media.behind-gl {
+  opacity: 0;
+}
+.np-liquid-media.front-crisp {
+  opacity: 1;
+}
+.np-liquid-stage.gl-ready.blooming .np-aura-ring {
+  opacity: 0 !important;
+  transition: opacity 0.38s var(--ease);
+}
+.np-shock-rings {
+  position: absolute;
+  inset: -16%;
+  pointer-events: none;
+  z-index: 4;
+}
+.np-shock-r1,
+.np-shock-r2 {
+  position: absolute;
+  inset: 12%;
+  border-radius: 30%;
+  border: 2px solid rgba(255, 224, 184, 0.72);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--aura-c1, #e4be8b) 65%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--aura-c2, #7692d8) 55%, transparent);
+  opacity: 0;
+}
+.np-liquid-stage.css-bloom .np-shock-r1 {
+  animation: liquidShockOut 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.np-liquid-stage.css-bloom .np-shock-r2 {
+  animation: liquidShockOut 1.05s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+}
+.np-liquid-stage.css-bloom .np-art-frame {
+  animation: liquidCoverBloom 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes liquidCoverBloom {
+  0% {
+    opacity: 0.15;
+    transform: scale(0.54);
+    border-radius: 44%;
+    box-shadow: 0 0 32px rgba(255, 220, 170, 0.55);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.02);
+    border-radius: 26px;
+    box-shadow:
+      0 0 36px color-mix(in srgb, var(--aura-c1, #e4be8b) 55%, transparent),
+      0 0 54px color-mix(in srgb, var(--aura-c2, #7692d8) 45%, transparent);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes liquidShockOut {
+  0% {
+    opacity: 0;
+    transform: scale(0.62);
+  }
+  20% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.24);
+  }
 }
 .np-aura-shell {
   position: relative;
@@ -1827,20 +1927,15 @@ img { display: block; user-select: none; -webkit-user-drag: none; }
   .np-overlay.panel-queue .np-left {
     gap: 8px;
   }
-  .np-art-stage {
-    width: min(82vw, 330px);
-    height: min(82vw, 330px);
-    max-height: 41vh;
+  .np-art-stage,
+  .np-overlay.panel-art .np-art-stage {
+    width: min(82vw, 41vh, 330px);
+    height: min(82vw, 41vh, 330px);
     aspect-ratio: 1;
     margin: 0 auto 6px;
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     transform-origin: center bottom;
-  }
-  .np-overlay.panel-art .np-art-stage {
-    width: min(82vw, 330px);
-    height: min(82vw, 330px);
-    max-height: 41vh;
   }
   .np-overlay.panel-lyrics .np-art-stage,
   .np-overlay.panel-queue .np-art-stage {

@@ -4,6 +4,7 @@ import { useAudioOutput } from '../utils/audioOutput';
 import { isSafeColor, isSafeExternalUrl } from '../utils/studioCore';
 import { audio, fmt, useLibrary, useLiked, usePlayer, usePlayerTime, useRouter, useSiteConfig } from '../store';
 import FluidBackground from './FluidBackground';
+import LiquidCoverStage from './LiquidCoverStage';
 import {
   AutoOutput, Bluetooth, CastIcon, Check, Explicit, Headphones, LosslessWave,
   Lyrics as LyricsIcon, More, Next, Pause, Play, Prev, QueueList, Repeat, Shuffle, Speaker, Star, VolHigh, VolLow,
@@ -91,6 +92,8 @@ export default function NowPlaying() {
   const [lyrLoading, setLyrLoading] = useState(false);
   const [menu, setMenu] = useState(false);
   const [outputOpen, setOutputOpen] = useState(false);
+  const [bloomKey, setBloomKey] = useState(0);
+  const prevOpenRef = useRef(false);
   const outputRef = useRef(null);
   const overlayRef = useRef(null);
   const dragRef = useRef({ active: false, startX: 0, startY: 0, startT: 0, dy: 0, dragging: false });
@@ -98,6 +101,7 @@ export default function NowPlaying() {
   const output = useAudioOutput(audio, notify);
 
   const toggleArtMode = () => {
+    setBloomKey((k) => k + 1);
     setArtMode((m) => {
       const next = m === 'aura' ? 'card' : 'aura';
       try {
@@ -128,8 +132,19 @@ export default function NowPlaying() {
   useEffect(() => () => animTimerRef.current && clearTimeout(animTimerRef.current), []);
 
   useEffect(() => {
-    if (!player.nowOpen) setOutputOpen(false);
+    if (!player.nowOpen) {
+      setOutputOpen(false);
+    } else if (!prevOpenRef.current) {
+      setBloomKey((k) => k + 1);
+    }
+    prevOpenRef.current = player.nowOpen;
   }, [player.nowOpen]);
+
+  useEffect(() => {
+    if (player.nowOpen && song?.id) {
+      setBloomKey((k) => k + 1);
+    }
+  }, [song?.id, player.nowOpen]);
 
   useEffect(() => {
     if (!outputOpen) return;
@@ -298,32 +313,22 @@ export default function NowPlaying() {
             <div
               className={`np-art-stage mode-${artMode} ${player.playing ? 'playing' : 'paused'} ${song.videoArt && siteConfig?.enableMotionArt !== false ? 'has-video' : ''}`}
               style={{ '--aura-c1': auraC1, '--aura-c2': auraC2 }}
-              onClick={() => {
-                if (!justDraggedRef.current) toggleArtMode();
-              }}
               title={artMode === 'aura' ? 'Switch to Square Cover' : 'Switch to Liquid Aura'}
             >
-              <div className="np-aura-shell">
-                <span className="np-aura-ring np-aura-r3" aria-hidden="true" />
-                <span className="np-aura-ring np-aura-r2" aria-hidden="true" />
-                <span className="np-aura-ring np-aura-r1" aria-hidden="true" />
-                <div className="np-art-frame">
-                  {song.videoArt && siteConfig?.enableMotionArt !== false && player.nowOpen ? (
-                    <video
-                      key={song.videoArt}
-                      className="np-video-art"
-                      src={song.videoArt}
-                      poster={art(song.art, 1000)}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <img src={art(song.art, 1000)} alt={song.title} decoding="async" />
-                  )}
-                </div>
-              </div>
+              <LiquidCoverStage
+                src={art(song.art, 1000)}
+                videoSrc={song.videoArt && siteConfig?.enableMotionArt !== false ? song.videoArt : null}
+                alt={song.title}
+                playing={player.playing}
+                active={player.nowOpen}
+                artMode={artMode}
+                triggerKey={bloomKey}
+                auraC1={auraC1}
+                auraC2={auraC2}
+                onClick={() => {
+                  if (!justDraggedRef.current) toggleArtMode();
+                }}
+              />
             </div>
 
             <div className="np-compact-head">
