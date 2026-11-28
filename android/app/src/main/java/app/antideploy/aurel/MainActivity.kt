@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity(), AurelPlaybackService.Listener {
         startService(svcIntent)
         bindService(svcIntent, connection, Context.BIND_AUTO_CREATE)
 
-        webView.loadUrl(APP_URL)
+        webView.loadUrl(APP_URL, mapOf("Cache-Control" to "no-cache", "Pragma" to "no-cache"))
     }
 
     override fun onDestroy() {
@@ -253,7 +253,7 @@ class MainActivity : AppCompatActivity(), AurelPlaybackService.Listener {
                 setTextColor(Color.WHITE)
                 setOnClickListener {
                     visibility = View.GONE
-                    webView.loadUrl(APP_URL)
+                    webView.loadUrl(APP_URL, mapOf("Cache-Control" to "no-cache", "Pragma" to "no-cache"))
                 }
             })
         }
